@@ -6,27 +6,57 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+# 1. 페이지 설정
 st.set_page_config(page_title="나의 도자기 일기", layout="centered")
 
+# 2. 디자인 수정 (아이콘 깨짐 방지 버전)
 st.markdown("""
     <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    html, body, [class*="css"], .stMarkdown, p, span, label, input, button, select {
+    
+    /* 전체 글꼴 적용 (아이콘 제외) */
+    html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Pretendard', sans-serif !important;
         letter-spacing: -0.03em !important;
     }
-    .stButton>button {
-        width: 100%; border-radius: 12px; height: 3.5em;
-        background-color: #8d6e63; color: white; font-weight: bold; border: none;
+
+    /* 제목, 버튼, 입력창 등 주요 요소에만 폰트 적용 (아이콘은 시스템 기본값 유지) */
+    h1, h2, h3, p, div, b, strong, label, input, button, select, textarea {
+        font-family: 'Pretendard', sans-serif !important;
+        letter-spacing: -0.03em !important;
     }
+    
+    /* 아이콘 폰트가 글자로 변하는 현상 방지 */
+    [data-testid="stIcon"], .st-ae, .st-af, .st-ag {
+        font-family: inherit !important;
+    }
+
+    .stButton>button {
+        width: 100%;
+        border-radius: 12px;
+        height: 3.5em;
+        background-color: #8d6e63;
+        color: white;
+        font-weight: bold;
+        border: none;
+    }
+
     .log-card {
-        background-color: #ffffff; padding: 18px; border-radius: 15px;
-        border: 1px solid #f0f0f0; margin-bottom: 20px;
+        background-color: #ffffff;
+        padding: 18px;
+        border-radius: 15px;
+        border: 1px solid #f0f0f0;
+        margin-bottom: 20px;
         box-shadow: 0px 4px 10px rgba(0,0,0,0.03);
+    }
+    
+    .stImage > img {
+        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
+# 데이터 파일 설정
 DATA_FILE = "pottery_diary_data.csv"
 
 def img_to_base64(image):
@@ -39,6 +69,7 @@ def load_data():
         return pd.read_csv(DATA_FILE)
     return pd.DataFrame(columns=["날짜", "작품명", "흙", "단계", "내용", "사진"])
 
+# --- 메인 화면 ---
 st.title("🏺 나의 도자기 일기")
 
 with st.expander("📝 오늘 작업 기록하기", expanded=True):
@@ -69,6 +100,7 @@ with st.expander("📝 오늘 작업 기록하기", expanded=True):
 
 st.divider()
 df = load_data()
+
 if not df.empty:
     for _, row in df.iloc[::-1].iterrows():
         with st.container():
@@ -84,6 +116,8 @@ if not df.empty:
             </div>
             """, unsafe_allow_html=True)
             if pd.notna(row['사진']) and row['사진'] != "":
-                st.image(base64.b64decode(row['사진']))
-else:
-    st.info("아직 기록이 없어요.")
+                try:
+                    st.image(base64.b64decode(row['사진']))
+                except:
+                    st.write("이미지를 불러올 수 없습니다.")
+            st.markdown("<br>", unsafe_allow_html=True)
