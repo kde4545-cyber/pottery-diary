@@ -25,7 +25,7 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
     .stTabs [data-baseweb="tab"] {{ font-size: 1.3em !important; padding: 10px 0px; }}
 
-    /* 기분 조각들 표 스타일 (가로 고정용) */
+    /* 기분 조각들 표 스타일 */
     .mood-table {{
         width: 100%;
         table-layout: fixed;
@@ -40,13 +40,16 @@ st.markdown(f"""
         border: 1px solid #F8F8F8;
     }}
 
+    /* 공통 갤러리/이미지 카드 디자인 */
     .gallery-card {{ background: white; border-radius: 15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); margin-bottom: 10px; overflow: hidden; }}
     .gallery-img-container {{ width: 100%; aspect-ratio: 1 / 1; overflow: hidden; background-color: #F8F8F8; }}
     .gallery-img-container img {{ width: 100%; height: 100%; object-fit: cover; }}
+    
     .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
     .cal-table th {{ text-align: center; font-size: 0.7em; color: {MAIN_COLOR}; padding: 5px 0; }}
     .cal-table td {{ border: 1px solid #F0F0F0; background: white; height: 55px; vertical-align: top; padding: 4px 1px; text-align: center; }}
     .is-today {{ background-color: #FFF9F8 !important; border: 2px solid {MAIN_COLOR} !important; }}
+    
     .summary-box {{ background: #F9F5F2; padding: 15px; border-radius: 15px; border-left: 5px solid {MAIN_COLOR}; margin-top: 10px; line-height: 1.6; }}
     .highlight {{ color: #D4A373; font-weight: 800; font-size: 1.15em; }}
     .title-text {{ font-size: 1.5em; font-weight: 800; color: #5D574F; margin-bottom: 15px; }}
@@ -103,7 +106,7 @@ with tab_cal:
                 sticker_html = "".join([f'<span style="font-size:1em;">{MOOD_DICT.get(m, "")}</span>' for m in logs['기분']]) if not logs.empty else ""
                 if not logs.empty: m_moods.extend(logs['기분'].tolist()); work_days += 1
                 t_cls = 'is-today' if curr_date == today_date else ''
-                html_cal += f'<td class="{t_cls}"><span style="font-size:0.6em; color:#CCC;">{day}</span><br>{sticker_html}</td>'
+                html_cal += f'<td class="{t_cls}"><span class="cal-date-num">{day}</span><br>{sticker_html}</td>'
         html_cal += '</tr>'
     st.markdown(html_cal + '</tbody></table>', unsafe_allow_html=True)
     st.markdown(f"<div class='summary-box'>**💡 {sel_month}월 요약**<br>{'총 '+str(work_days)+'일 작업했어요.' if work_days>0 else '기록이 없어요.'}</div>", unsafe_allow_html=True)
@@ -150,7 +153,7 @@ with tab_proj:
                         if st.button("삭제", key=f"del_{r_idx}"): df = df.drop(index=r_idx); save_data(df); st.rerun()
     else: st.info("기록이 없습니다.")
 
-# --- [TAB 4: 기분 조각들 - 오류 해결 버전] ---
+# --- [TAB 4: 기분 조각들 - 대표 사진 추가] ---
 with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
     
@@ -165,6 +168,23 @@ with tab_mood:
         target_val = st.selectbox("작품 선택", sorted(df['작품명'].unique()) if not df.empty else ["없음"])
         filtered_df = df[df['작품명'] == target_val]
         display_name = target_val
+        
+        # 🏺 [작품별 모드일 때] 대표 사진 표시
+        if not filtered_df.empty:
+            # 해당 작품의 사진이 있는 기록 중 가장 최신 것 가져오기
+            photo_logs = filtered_df[filtered_df['사진1'] != ""]
+            if not photo_logs.empty:
+                rep_row = photo_logs.iloc[-1]
+                img_src = f"data:image/jpeg;base64,{rep_row['사진1']}"
+                st.markdown(f'''
+                    <div style="width: 150px; margin: 0 auto 15px auto;">
+                        <div class="gallery-card">
+                            <div class="gallery-img-container">
+                                <img src="{img_src}">
+                            </div>
+                        </div>
+                    </div>
+                ''', unsafe_allow_html=True)
 
     if not filtered_df.empty:
         mood_counts = filtered_df['기분'].value_counts()
@@ -179,27 +199,19 @@ with tab_mood:
         </div>
         """, unsafe_allow_html=True)
 
-        # 기분 그리드 (코드가 노출되지 않도록 가장 단순한 HTML 표 구조 사용)
+        # 기분 그리드 표
         items = list(MOOD_DICT.items())
-        
-        # 1~4번째 감정
         h1 = '<table class="mood-table"><tr>'
         for i in range(4):
             name, emoji = items[i]
-            cnt = mood_counts.get(name, 0)
-            pct = int(cnt/total_moods*100)
-            h1 += f'<td><div style="font-size:1.4em;">{emoji}</div><div style="font-size:0.7em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.85em;">{pct}%</div><div style="font-size:0.6em; color:#CCC;">({cnt}회)</div></td>'
-        h1 += '</tr>'
-        
-        # 5~7번째 감정
-        h1 += '<tr>'
+            cnt = mood_counts.get(name, 0); pct = int(cnt/total_moods*100)
+            h1 += f'<td><div style="font-size:1.4em;">{emoji}</div><div style="font-size:0.75em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.85em;">{pct}%</div><div style="font-size:0.6em; color:#CCC;">({cnt}회)</div></td>'
+        h1 += '</tr><tr>'
         for i in range(4, 7):
             name, emoji = items[i]
-            cnt = mood_counts.get(name, 0)
-            pct = int(cnt/total_moods*100)
-            h1 += f'<td><div style="font-size:1.4em;">{emoji}</div><div style="font-size:0.7em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.85em;">{pct}%</div><div style="font-size:0.6em; color:#CCC;">({cnt}회)</div></td>'
-        h1 += '<td></td></tr></table>' # 마지막 빈칸 채우기
-        
+            cnt = mood_counts.get(name, 0); pct = int(cnt/total_moods*100)
+            h1 += f'<td><div style="font-size:1.4em;">{emoji}</div><div style="font-size:0.75em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.85em;">{pct}%</div><div style="font-size:0.6em; color:#CCC;">({cnt}회)</div></td>'
+        h1 += '<td></td></tr></table>'
         st.markdown(h1, unsafe_allow_html=True)
     else:
         st.info("데이터가 없습니다.")
