@@ -25,35 +25,33 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
     .stTabs [data-baseweb="tab"] {{ font-size: 1.3em !important; padding: 10px 0px; }}
 
-    /* 갤러리 카드 디자인 */
-    .gallery-card {{
-        background: white; border-radius: 15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
-        margin-bottom: 20px; overflow: hidden;
+    /* 기분 조각들 그리드 (모바일 대응) */
+    .mood-grid-container {{
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        text-align: center;
+        margin-top: 15px;
     }}
-    .gallery-img-container {{
-        width: 100%; aspect-ratio: 1 / 1; overflow: hidden; background-color: #F8F8F8;
+    .mood-item {{
+        background: white;
+        padding: 10px 5px;
+        border-radius: 15px;
+        border: 1px solid #F0F0F0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
-    .gallery-img-container img {{
-        width: 100%; height: 100%; object-fit: cover;
-    }}
-    .gallery-info {{ padding: 12px; }}
-    .gallery-title {{ font-weight: 800; font-size: 0.95em; color: #444; display: flex; align-items: center; gap: 5px; }}
-    .complete-badge {{ background-color: #E2F0CB; color: #5D8A66; font-size: 0.7em; padding: 2px 6px; border-radius: 5px; font-weight: bold; }}
 
-    /* 캘린더 디자인 */
+    .gallery-card {{ background: white; border-radius: 15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }}
+    .gallery-img-container {{ width: 100%; aspect-ratio: 1 / 1; overflow: hidden; background-color: #F8F8F8; }}
+    .gallery-img-container img {{ width: 100%; height: 100%; object-fit: cover; }}
     .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
     .cal-table th {{ text-align: center; font-size: 0.7em; color: {MAIN_COLOR}; padding: 5px 0; }}
     .cal-table td {{ border: 1px solid #F0F0F0; background: white; height: 55px; vertical-align: top; padding: 4px 1px; text-align: center; }}
-    .cal-date-num {{ font-size: 0.6em; color: #CCC; display: block; margin-bottom: 2px; }}
-    .cal-mood-sticker {{ font-size: 1.2em; display: block; }}
     .is-today {{ background-color: #FFF9F8 !important; border: 2px solid {MAIN_COLOR} !important; }}
-
-    /* 버튼 및 카드 */
-    .dana-card {{ background: white; padding: 20px; border-radius: 20px; box-shadow: 0px 8px 20px rgba(0,0,0,0.03); margin-bottom: 20px; }}
     .summary-box {{ background: #F9F5F2; padding: 15px; border-radius: 15px; border-left: 5px solid {MAIN_COLOR}; margin-top: 10px; }}
     .highlight {{ color: #D4A373; font-weight: 800; font-size: 1.15em; }}
     .title-text {{ font-size: 1.5em; font-weight: 800; color: #5D574F; margin-bottom: 15px; }}
-    .stButton>button {{ width: 100%; border-radius: 15px; height: 3.5em; background-color: {MAIN_COLOR}; color: white; font-weight: bold; border: none; }}
+    .stButton>button {{ width: 100%; border-radius: 12px; height: 3.5em; background-color: {MAIN_COLOR}; color: white; font-weight: bold; border: none; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -103,10 +101,10 @@ with tab_cal:
             else:
                 curr_date = date(sel_year, sel_month, day)
                 logs = df[df['날짜'] == curr_date]
-                stickers = "".join([f'<span class="cal-mood-sticker">{MOOD_DICT.get(m, "")}</span>' for m in logs['기분']]) if not logs.empty else ""
+                sticker_html = "".join([f'<span style="font-size:1.1em;">{MOOD_DICT.get(m, "")}</span>' for m in logs['기분']]) if not logs.empty else ""
                 if not logs.empty: m_moods.extend(logs['기분'].tolist()); work_days += 1
                 t_cls = 'is-today' if curr_date == today_date else ''
-                html += f'<td class="{t_cls}"><span class="cal-date-num">{day}</span><span class="cal-mood-sticker">{stickers}</span></td>'
+                html += f'<td class="{t_cls}"><span style="font-size:0.6em; color:#CCC;">{day}</span><br>{sticker_html}</td>'
         html += '</tr>'
     st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
     st.markdown(f"<div class='summary-box'>**💡 {sel_month}월 요약**<br>{'총 '+str(work_days)+'일 작업했어요.' if work_days>0 else '기록이 없어요.'}</div>", unsafe_allow_html=True)
@@ -130,11 +128,9 @@ with tab_rec:
             if r_title:
                 img_list = [process_img(r_imgs[i]) if i < len(r_imgs) else "" for i in range(3)]
                 new_row = pd.DataFrame([[r_date, r_title, r_clay, r_step, r_note, img_list[0], img_list[1], img_list[2], sel_mood, r_type, r_obj]], columns=df.columns)
-                df = pd.concat([df, new_row], ignore_index=True); save_data(df)
-                st.balloons(); st.rerun()
-            else: st.error("작품명을 적어주세요!")
+                df = pd.concat([df, new_row], ignore_index=True); save_data(df); st.balloons(); st.rerun()
 
-# --- [TAB 3: 작품 모아보기 - 수정 기능 추가] ---
+# --- [TAB 3: 작품 모아보기] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
     p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, label_visibility="collapsed")
@@ -149,74 +145,75 @@ with tab_proj:
             with p_cols[idx % 2]:
                 img_src = f"data:image/jpeg;base64,{rep_row['사진1']}" if rep_row is not None else ""
                 st.markdown(f'<div class="gallery-card"><div class="gallery-img-container">{"<img src=\'"+img_src+"\'>" if rep_row is not None else "<div style=\'padding:40% 10%; color:#ccc;\'>No Photo</div>"}</div><div class="gallery-info"><div class="gallery-title">🏺 {t} {"<span class=\'complete-badge\'>완성</span>" if is_done else ""}</div></div></div>', unsafe_allow_html=True)
-                
                 with st.expander("과정 보기/수정"):
                     for r_idx, row in p_logs.iterrows():
                         st.caption(f"{row['날짜']} | {row['단계']}")
-                        # 사진 표시
-                        p_cols_img = st.columns(3)
+                        p_img_cols = st.columns(3)
                         for i, ic in enumerate(['사진1', '사진2', '사진3']):
-                            if pd.notna(row[ic]) and row[ic] != "":
-                                p_cols_img[i].image(base64.b64decode(row[ic]), use_container_width=True)
-                        
+                            if pd.notna(row[ic]) and row[ic] != "": p_img_cols[i].image(base64.b64decode(row[ic]), use_container_width=True)
                         if row['내용']: st.write(row['내용'])
-                        
-                        # --- 수정 및 삭제 버튼 ---
                         btn_c1, btn_c2 = st.columns(2)
                         with btn_c1:
-                            # [수정 팝업]
                             with st.popover("✏️ 수정"):
-                                with st.form(f"edit_form_{r_idx}"):
-                                    edit_mood = st.radio("기분", list(MOOD_DICT.keys()), index=list(MOOD_DICT.keys()).index(row['기분']), horizontal=True, format_func=lambda x: MOOD_DICT[x])
-                                    edit_date = st.date_input("날짜", row['날짜'])
-                                    edit_title = st.text_input("작품명", row['작품명'])
-                                    edit_note = st.text_area("메모", row['내용'])
-                                    
+                                with st.form(f"edit_f_{r_idx}"):
+                                    e_mood = st.radio("기분", list(MOOD_DICT.keys()), index=list(MOOD_DICT.keys()).index(row['기분']), horizontal=True, format_func=lambda x: MOOD_DICT[x])
+                                    e_date = st.date_input("날짜", row['날짜'])
+                                    e_title = st.text_input("작품명", row['작품명'])
+                                    e_note = st.text_area("메모", row['내용'])
                                     st.write("---")
-                                    photo_option = st.radio("사진 관리", ["기존 사진 유지", "새 사진으로 교체"], horizontal=True)
-                                    new_imgs = st.file_uploader("새 사진 (교체 선택 시에만 적용)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-                                    
-                                    if st.form_submit_button("수정 완료"):
-                                        df.at[r_idx, '기분'] = edit_mood
-                                        df.at[r_idx, '날짜'] = edit_date
-                                        df.at[r_idx, '작품명'] = edit_title
-                                        df.at[r_idx, '내용'] = edit_note
-                                        
-                                        if photo_option == "새 사진으로 교체":
-                                            img_list = [process_img(new_imgs[i]) if i < len(new_imgs) else "" for i in range(3)]
-                                            df.at[r_idx, '사진1'] = img_list[0]
-                                            df.at[r_idx, '사진2'] = img_list[1]
-                                            df.at[r_idx, '사진3'] = img_list[2]
-                                        
-                                        save_data(df)
-                                        st.success("수정되었습니다!")
-                                        st.rerun()
-
+                                    photo_opt = st.radio("사진", ["유지", "교체"], horizontal=True)
+                                    new_i = st.file_uploader("교체용 사진", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+                                    if st.form_submit_button("저장"):
+                                        df.at[r_idx, '기분'], df.at[r_idx, '날짜'], df.at[r_idx, '작품명'], df.at[r_idx, '내용'] = e_mood, e_date, e_title, e_note
+                                        if photo_opt == "교체":
+                                            img_list = [process_img(new_i[j]) if j < len(new_i) else "" for j in range(3)]
+                                            df.at[r_idx, '사진1'], df.at[r_idx, '사진2'], df.at[r_idx, '사진3'] = img_list[0], img_list[1], img_list[2]
+                                        save_data(df); st.rerun()
                         with btn_c2:
-                            # [삭제 팝업]
                             with st.popover("🗑️ 삭제"):
-                                st.warning("정말 삭제할까요?")
-                                if st.button("확인", key=f"del_{r_idx}"):
-                                    df = df.drop(index=r_idx); save_data(df); st.rerun()
+                                if st.button("삭제 확인", key=f"d_{r_idx}"): df = df.drop(index=r_idx); save_data(df); st.rerun()
                         st.divider()
-    else: st.info("기록이 없습니다.")
 
-# --- [TAB 4: 기분 조각들] ---
+# --- [TAB 4: 기분 조각들 - 필터 독립 작동] ---
 with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1: m_month = st.selectbox("월", list(range(1, 13)), index=datetime.now().month-1, key="sm")
-    with c2: m_proj = st.selectbox("작품", ["전체보기"] + list(df['작품명'].unique()), key="sp")
-    m_df = df.copy(); m_df['월'] = pd.to_datetime(m_df['날짜']).dt.month
-    m_df = m_df[m_df['월'] == m_month]
-    if m_proj != "전체보기": m_df = m_df[m_df['작품명'] == m_proj]
-    if not m_df.empty:
-        m_counts = m_df['기분'].value_counts()
-        m_grid = st.columns(4)
-        for i, (m, emoji) in enumerate(MOOD_DICT.items()):
-            cnt = m_counts.get(m, 0)
-            with m_grid[i % 4]: st.markdown(f"<div style='text-align:center;'>{emoji}<br><small>{m}</small><br><b>{cnt}</b></div>", unsafe_allow_html=True)
-    else: st.info("기록이 없습니다.")
+    
+    # 1. 필터 모드 선택
+    mood_filter_mode = st.radio("모아보기 기준", ["📅 월별", "🏺 작품별"], horizontal=True)
+    
+    # 2. 선택창 표시
+    if mood_filter_mode == "📅 월별":
+        m_val = st.selectbox("월 선택", list(range(1, 13)), index=datetime.now().month-1)
+        # 월 데이터 필터링
+        m_df = df.copy()
+        m_df['월'] = pd.to_datetime(m_df['날짜']).dt.month
+        filtered_mood_df = m_df[m_df['월'] == m_val]
+        st.write(f"🎯 **{m_val}월**에 느낀 감정 모음")
+    else:
+        p_val = st.selectbox("작품 선택", sorted(df['작품명'].unique()))
+        # 작품 데이터 필터링 (월 상관없이)
+        filtered_mood_df = df[df['작품명'] == p_val]
+        st.write(f"🎯 **{p_val}** 작업 전체 기간 감정 모음")
+    
+    # 3. 통계 계산 및 그리드 표시
+    if not filtered_mood_df.empty:
+        mood_counts = filtered_mood_df['기분'].value_counts()
+        
+        # HTML을 이용한 가로 그리드 (모바일 늘어남 방지)
+        mood_html = '<div class="mood-grid-container">'
+        for m_name, emoji in MOOD_DICT.items():
+            cnt = mood_counts.get(m_name, 0)
+            mood_html += f'''
+                <div class="mood-item">
+                    <div style="font-size:1.5em;">{emoji}</div>
+                    <div style="font-size:0.7em; color:#666;">{m_name}</div>
+                    <div style="font-weight:bold; color:{MAIN_COLOR};">{cnt}</div>
+                </div>
+            '''
+        mood_html += '</div>'
+        st.markdown(mood_html, unsafe_allow_html=True)
+    else:
+        st.info("데이터가 없습니다.")
 
 # --- [TAB 5: Dana's Log] ---
 with tab_log:
@@ -225,12 +222,10 @@ with tab_log:
         total_p = df['작품명'].nunique(); done_p = df[df['단계'] == "완성"]['작품명'].nunique(); ing_p = total_p - done_p
         top_m = df['기분'].mode()[0] if not df['기분'].empty else "-"; top_o = df['기물종류'].mode()[0] if not df['기물종류'].empty else "-"
         st.markdown(f"""<div class="dana-card"><p style='line-height:1.8;'>지금까지 Dana님은...<br>총 <span class="highlight">{done_p}개</span>를 완성하고,<br>지금은 <span class="highlight">{ing_p}개</span>를 빚고 있어요. 🕊️<br>주로 <span class="highlight">'{top_m}' {MOOD_DICT.get(top_m, '')}</span> 마음이었고,<br>주력 기물은 <span class="highlight">'{top_o}'</span>이에요!</p></div>""", unsafe_allow_html=True)
-        def draw_donut(labels, values):
-            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
-            fig.update_layout(showlegend=True, margin=dict(t=10, b=10, l=10, r=10), height=280, legend=dict(orientation="h", y=-0.1))
-            st.plotly_chart(fig, use_container_width=True)
-        draw_donut(df['기분'].value_counts().index, df['기분'].value_counts().values)
-        draw_donut(df['기물종류'].value_counts().index, df['기물종류'].value_counts().values)
+        mood_counts = df['기분'].value_counts()
+        fig = go.Figure(data=[go.Pie(labels=mood_counts.index, values=mood_counts.values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
+        fig.update_layout(showlegend=True, margin=dict(t=10, b=10, l=10, r=10), height=280, legend=dict(orientation="h", y=-0.1))
+        st.plotly_chart(fig, use_container_width=True)
     else: st.info("기록이 부족합니다.")
 
 st.markdown("<br><br><br>", unsafe_allow_html=True)
