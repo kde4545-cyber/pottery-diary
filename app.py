@@ -23,36 +23,22 @@ st.markdown(f"""
         background-color: #FDFBF9;
     }}
     
-    /* 최상단 고정 제목 스타일 */
     .fixed-title {{
-        font-size: 1.8em;
-        font-weight: 900;
-        color: #5D574F;
-        text-align: center;
-        margin-bottom: 20px;
-        padding-top: 10px;
+        font-size: 1.8em; font-weight: 900; color: #5D574F; text-align: center;
+        margin-bottom: 20px; padding-top: 10px;
     }}
 
     .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
     .stTabs [data-baseweb="tab"] {{ flex-grow: 1; text-align: center; }}
     .stTabs [data-baseweb="tab-list"] button div {{ font-size: 1.4rem !important; }}
 
-    /* [작품 모아보기] 인스타그램형 3x3 그리드 고정 */
     .insta-container {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        width: 100%;
-        margin-bottom: 20px;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin-bottom: 20px;
     }}
     .insta-item {{ display: flex; flex-direction: column; align-items: center; }}
     .insta-box {{
-        width: 100%;
-        aspect-ratio: 1/1;
-        overflow: hidden;
-        border-radius: 8px;
-        background-color: #F0F0F0;
-        border: 1px solid #EEE;
+        width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px;
+        background-color: #F0F0F0; border: 1px solid #EEE;
     }}
     .insta-box img {{ width: 100%; height: 100%; object-fit: cover; }}
     .insta-empty {{ background-color: #F6F6F6; border: 1px dashed #DDD; }}
@@ -73,9 +59,13 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 데이터 로직 ---
+# --- 2. 데이터 및 공통 항목 정의 ---
 DATA_FILE = "pottery_diary_v4.csv"
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
+CLAY_LIST = ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"]
+TYPE_LIST = ["물레", "핸드빌딩", "기타"]
+OBJ_LIST = ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"]
+STEP_LIST = ["성형", "건조", "초벌", "시유", "완성"]
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -97,10 +87,10 @@ month_opts = [f"{y}년 {m:02d}월" for y in [2025, 2026] for m in range(1, 13) i
 if 'sel_m_idx' not in st.session_state: st.session_state.sel_m_idx = len(month_opts) - 1
 if 'proj_detail' not in st.session_state: st.session_state.proj_detail = None
 
-# --- [최상단 고정 제목] ---
+# [최상단 고정 제목]
 st.markdown('<div class="fixed-title">다니의 슬기로운 도예라이프❤️‍🔥</div>', unsafe_allow_html=True)
 
-# --- 3. 메뉴 구성 (탭 순서 변경) ---
+# --- 3. 메뉴 구성 (탭) ---
 tabs = st.tabs(["📊", "📅", "📜", "🏺", "✨", "📝"])
 tab_log, tab_cal, tab_list, tab_proj, tab_mood, tab_rec = tabs
 
@@ -131,8 +121,16 @@ with tab_log:
 
 # --- [TAB 2: 📅 월간 모아보기] ---
 with tab_cal:
-    m_str = st.selectbox("월 선택", month_opts, index=st.session_state.sel_m_idx, key="calendar_m_sel")
-    st.session_state.sel_m_idx = month_opts.index(m_str)
+    c1, c2, c3 = st.columns([1, 6, 1])
+    with c1:
+        if st.button("◀", key="cp"):
+            if st.session_state.sel_m_idx > 0: st.session_state.sel_m_idx -= 1; st.rerun()
+    with c2:
+        m_str = st.selectbox("월", month_opts, index=st.session_state.sel_m_idx, label_visibility="collapsed", key="cs")
+        st.session_state.sel_m_idx = month_opts.index(m_str)
+    with c3:
+        if st.button("▶", key="cn"):
+            if st.session_state.sel_m_idx < len(month_opts)-1: st.session_state.sel_m_idx += 1; st.rerun()
     y_v, m_v = int(m_str[:4]), int(m_str[6:8])
     st.markdown(f"<div class='title-text'>{m_v}월 모아보기</div>", unsafe_allow_html=True)
     cal_data = calendar.monthcalendar(y_v, m_v)
@@ -151,25 +149,55 @@ with tab_cal:
         h_cal += '</tr>'
     st.markdown(h_cal + '</tbody></table>', unsafe_allow_html=True)
 
-# --- [TAB 3: 📜 기록 모아보기] ---
+# --- [TAB 3: 📜 기록 모아보기 - 완벽 수정 기능] ---
 with tab_list:
     st.markdown("<div class='title-text'>기록 모아보기</div>", unsafe_allow_html=True)
     if not df.empty:
         for idx, row in df.sort_values(by='날짜', ascending=False).iterrows():
-            with st.expander(f"🏺 {row['날짜']} | {row['작품명']}"):
-                st.write(f"**기분:** {MOOD_DICT.get(row['기분'], '')} | **유형:** {row['작업유형']} | **흙:** {row['흙']}")
+            with st.expander(f"🏺 {row['날짜']} | {row['작품명']} ({row['단계']})"):
+                st.write(f"**기분:** {MOOD_DICT.get(row['기분'], '')} | **유형:** {row['작업유형']} | **흙:** {row['흙']} | **기물:** {row['기물종류']}")
                 st.write(f"**메모:** {row['내용']}")
                 icols = st.columns(3)
                 for i, c in enumerate(['사진1', '사진2', '사진3']):
                     if pd.notna(row[c]) and row[c] != "": icols[i].image(base64.b64decode(row[c]), use_container_width=True)
-                with st.popover("✏️ 수정"):
-                    with st.form(f"edit_{idx}"):
-                        e_note = st.text_area("내용 수정", row['내용'])
-                        if st.form_submit_button("저장"):
-                            df.at[idx, '내용'] = e_note; save_data(df); st.rerun()
+                
+                # --- 모든 항목 수정 폼 ---
+                with st.popover("✏️ 모든 정보 수정"):
+                    with st.form(f"full_edit_{idx}"):
+                        e_mood = st.radio("기분", list(MOOD_DICT.keys()), index=list(MOOD_DICT.keys()).index(row['기분']), horizontal=True, format_func=lambda x: MOOD_DICT[x])
+                        e_date = st.date_input("날짜", row['날짜'])
+                        e_title = st.text_input("작품명", row['작품명'])
+                        ec1, ec2 = st.columns(2)
+                        e_type = ec1.selectbox("작업 유형", TYPE_LIST, index=TYPE_LIST.index(row['작업유형']) if row['작업유형'] in TYPE_LIST else 0)
+                        e_clay = ec2.selectbox("흙 종류", CLAY_LIST, index=CLAY_LIST.index(row['흙']) if row['흙'] in CLAY_LIST else 0)
+                        e_obj = st.selectbox("기물 종류", OBJ_LIST, index=OBJ_LIST.index(row['기물종류']) if row['기물종류'] in OBJ_LIST else 0)
+                        e_step = st.select_slider("단계", options=STEP_LIST, value=row['단계'])
+                        e_note = st.text_area("메모", row['내용'])
+                        
+                        st.write("---")
+                        st.info("사진을 새로 올리면 기존 사진이 교체됩니다. 올리지 않으면 기존 사진이 유지됩니다.")
+                        e_imgs = st.file_uploader("사진 교체 (최대 3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"f_edit_img_{idx}")
+                        
+                        if st.form_submit_button("수정 내용 저장"):
+                            df.at[idx, '기분'] = e_mood
+                            df.at[idx, '날짜'] = e_date
+                            df.at[idx, '작품명'] = e_title
+                            df.at[idx, '작업유형'] = e_type
+                            df.at[idx, '흙'] = e_clay
+                            df.at[idx, '기물종류'] = e_obj
+                            df.at[idx, '단계'] = e_step
+                            df.at[idx, '내용'] = e_note
+                            
+                            if e_imgs:
+                                img_list = [process_img(e_imgs[i]) if i < len(e_imgs) else "" for i in range(3)]
+                                df.at[idx, '사진1'], df.at[idx, '사진2'], df.at[idx, '사진3'] = img_list[0], img_list[1], img_list[2]
+                            
+                            save_data(df); st.success("수정되었습니다!"); st.rerun()
+                
                 if st.button("🗑️ 삭제", key=f"dl_{idx}"): df = df.drop(index=idx); save_data(df); st.rerun()
+    else: st.info("기록이 없습니다.")
 
-# --- [TAB 4: 🏺 작품 모아보기 - 3x3 그리드] ---
+# --- [TAB 4: 🏺 작품 모아보기] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
     p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed")
@@ -202,12 +230,12 @@ with tab_proj:
 # --- [TAB 5: ✨ 기분 조각들] ---
 with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
-    mood_mode = st.radio("기준", ["📅 월별", "🏺 작품별"], horizontal=True)
-    if mood_mode == "📅 월별":
-        sel_m = st.selectbox("월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m_final")
+    mode = st.radio("기준", ["📅 월별", "🏺 작품별"], horizontal=True)
+    if mode == "📅 월별":
+        sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m")
         v_m = int(sel_m[6:8]); f_df = df[pd.to_datetime(df['날짜']).dt.month == v_m]; d_n = f"{v_m}월"
     else:
-        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_p_final")
+        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_p")
         f_df = df[df['작품명'] == p_v]; d_n = p_v
         if not f_df.empty and pd.notna(f_df.iloc[-1]['사진1']):
             st.markdown(f'<div style="width:100px; margin:0 auto 10px; aspect-ratio:1/1; overflow:hidden; border-radius:8px; border:1px solid #EEE;"><img src="data:image/jpeg;base64,{f_df.iloc[-1]["사진1"]}" style="width:100%; height:100%; object-fit:cover;"></div>', unsafe_allow_html=True)
@@ -229,10 +257,8 @@ with tab_rec:
         c1, c2 = st.columns(2)
         r_date = c1.date_input("날짜", datetime.now().date()); r_title = c2.text_input("작품명")
         c3, c4 = st.columns(2)
-        r_type = c3.selectbox("작업 유형", ["물레", "핸드빌딩", "기타"])
-        r_clay = c4.selectbox("흙 종류", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
-        r_obj = st.selectbox("기물 종류", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
-        r_step = st.select_slider("단계", options=["성형", "건조", "초벌", "시유", "완성"])
+        r_type = c3.selectbox("작업 유형", TYPE_LIST); r_clay = c4.selectbox("흙 종류", CLAY_LIST)
+        r_obj = st.selectbox("기물 종류", OBJ_LIST); r_step = st.select_slider("단계", options=STEP_LIST)
         r_imgs = st.file_uploader("사진(최대 3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
         r_note = st.text_area("메모")
         if st.form_submit_button("기록 저장하기"):
