@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 import calendar
 import plotly.graph_objects as go
 
-# --- 1. 페이지 설정 및 디자인 ---
+# --- 1. 페이지 설정 및 디자인 (Pretendard) ---
 st.set_page_config(page_title="Dana's Pottery Log", layout="centered")
 
 MAIN_COLOR = '#B09B90'
@@ -27,24 +27,7 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ flex-grow: 1; text-align: center; }}
     .stTabs [data-baseweb="tab-list"] button div {{ font-size: 1.4rem !important; }}
 
-    /* [네비게이션] 모바일 강제 가로 한 줄 고정 */
-    div[data-testid="column"]:has(button[key^="cp"]), 
-    div[data-testid="column"]:has(div[data-testid="stSelectbox"]), 
-    div[data-testid="column"]:has(button[key^="cn"]) {{
-        flex: unset !important;
-        width: auto !important;
-        min-width: 0px !important;
-    }}
-    div[data-testid="stHorizontalBlock"]:has(button[key^="cp"]) {{
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 10px !important;
-    }}
-
-    /* [작품 모아보기] 인스타그램형 3x3 그리드 강제 고정 */
+    /* [작품 모아보기] 인스타그램형 3x3 그리드 강제 고정 (이미지만) */
     .insta-container {{
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -64,10 +47,12 @@ st.markdown(f"""
     .insta-box img {{ width: 100%; height: 100%; object-fit: cover; }}
     .insta-empty {{ background-color: #F6F6F6; border: 1px dashed #DDD; }}
 
+    /* 캘린더/일반 표 디자인 */
     .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; }}
     .cal-table td {{ border: 1px solid #F2F2F2; background: white; height: 60px; vertical-align: top; text-align: center; padding: 2px; }}
     .has-rec {{ background-color: #F9F5F2 !important; }}
 
+    /* 요약 카드 및 박스 */
     .dana-card {{ background: white; padding: 20px; border-radius: 20px; box-shadow: 0px 8px 20px rgba(0,0,0,0.03); margin-bottom: 20px; }}
     .summary-box {{ background: #F9F5F2; padding: 15px; border-radius: 15px; border-left: 5px solid {MAIN_COLOR}; margin-top: 10px; line-height: 1.6; }}
     .highlight {{ color: #D4A373; font-weight: 800; font-size: 1.1em; }}
@@ -80,7 +65,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 데이터 및 로직 ---
+# --- 2. 로직 및 데이터 ---
 DATA_FILE = "pottery_diary_v4.csv"
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
 
@@ -110,19 +95,9 @@ tab_cal, tab_list, tab_rec, tab_proj, tab_mood, tab_log = tabs
 
 # --- [TAB 1: 📅 월간 모아보기] ---
 with tab_cal:
-    # 한 줄 배치 강제 적용 (CSS와 연동)
-    nc1, nc2, nc3 = st.columns([1, 8, 1])
-    with nc1:
-        if st.button("◀", key="cp"):
-            if st.session_state.sel_m_idx > 0:
-                st.session_state.sel_m_idx -= 1; st.rerun()
-    with nc2:
-        m_str = st.selectbox("월", month_opts, index=st.session_state.sel_m_idx, label_visibility="collapsed", key="cs")
-        st.session_state.sel_m_idx = month_opts.index(m_str)
-    with nc3:
-        if st.button("▶", key="cn"):
-            if st.session_state.sel_m_idx < len(month_opts)-1:
-                st.session_state.sel_m_idx += 1; st.rerun()
+    # 화살표 제거하고 드롭다운만 남김
+    m_str = st.selectbox("월 선택", month_opts, index=st.session_state.sel_m_idx, key="calendar_month_select")
+    st.session_state.sel_m_idx = month_opts.index(m_str)
 
     y_v, m_v = int(m_str[:4]), int(m_str[6:8])
     st.markdown(f"<div class='title-text'>{m_v}월 모아보기</div>", unsafe_allow_html=True)
@@ -181,15 +156,14 @@ with tab_rec:
                 new_row = pd.DataFrame([[r_date, r_title, r_clay, r_step, r_note, img_l[0], img_l[1], img_l[2], mood, r_type, r_obj]], columns=df.columns)
                 df = pd.concat([df, new_row], ignore_index=True); save_data(df); st.balloons(); st.rerun()
 
-# --- [TAB 4: 🏺 작품 모아보기 - 제목 제거 3x3 그리드] ---
+# --- [TAB 4: 🏺 작품 모아보기 - 이미지만 있는 3x3 그리드] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
-    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed_grid")
+    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed_images")
     
-    u_titles = df['작품명'].unique()[::-1] if not df.empty else []
-    display_list = [t for t in u_titles if (p_filter=="전체") or (p_filter=="작업중" and "완성" not in df[df['작품명']==t]['단계'].values) or (p_filter=="완성" and "완성" in df[df['작품명']==t]['단계'].values)]
+    unique_titles = df['작품명'].unique()[::-1] if not df.empty else []
+    display_list = [t for t in unique_titles if (p_filter=="전체") or (p_filter=="작업중" and "완성" not in df[df['작품명']==t]['단계'].values) or (p_filter=="완성" and "완성" in df[df['작품명']==t]['단계'].values)]
     
-    # 3x3 그리드 (제목 제거, 이미지만)
     grid_html = '<div class="insta-container">'
     for i in range(max(9, len(display_list))):
         if i < len(display_list):
@@ -220,10 +194,10 @@ with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
     mode = st.radio("기준", ["📅 월별", "🏺 작품별"], horizontal=True)
     if mode == "📅 월별":
-        sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m")
+        sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_month_select")
         v_m = int(sel_m[6:8]); f_df = df[pd.to_datetime(df['날짜']).dt.month == v_m]; d_n = f"{v_m}월"
     else:
-        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()) if not df.empty else ["없음"], key="mood_p")
+        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_project_select")
         f_df = df[df['작품명'] == p_v]; d_n = p_v
         if not f_df.empty and pd.notna(f_df.iloc[-1]['사진1']):
             st.markdown(f'<div style="width:100px; margin:0 auto 10px; aspect-ratio:1/1; overflow:hidden; border-radius:8px; border:1px solid #EEE;"><img src="data:image/jpeg;base64,{f_df.iloc[-1]["사진1"]}" style="width:100%; height:100%; object-fit:cover;"></div>', unsafe_allow_html=True)
@@ -237,7 +211,7 @@ with tab_mood:
             h_mood += f'<td style="text-align:center; padding:8px 2px; background:white; border:1px solid #F8F8F8;"><div style="font-size:1.2em;">{emoji}</div><div style="font-size:0.7em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.8em;">{pct}%</div><div style="font-size:0.5em; color:#CCC;">({cnt}회)</div></td>'
         st.markdown(h_mood + '<td></td></tr></table>', unsafe_allow_html=True)
 
-# --- [TAB 6: 📊 기록 요약 - 3종 그래프 및 멘트 완벽 복원] ---
+# --- [TAB 6: 📊 기록 요약 - 3종 그래프 및 다나님 멘트 완벽 복원] ---
 with tab_log:
     st.markdown("<div class='title-text'>DANA의 기록 요약</div>", unsafe_allow_html=True)
     if not df.empty:
@@ -253,10 +227,12 @@ with tab_log:
             </p>
         </div>
         """, unsafe_allow_html=True)
+
         def draw_donut(labels, values, title):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
             fig.update_layout(showlegend=True, margin=dict(t=30, b=10, l=10, r=10), height=250, legend=dict(orientation="h", y=-0.2))
             st.write(f"**{title}**"); st.plotly_chart(fig, use_container_width=True)
+
         draw_donut(df['기분'].value_counts().index, df['기분'].value_counts().values, "🌈 기분 비중")
         draw_donut(df['작업유형'].value_counts().index, df['작업유형'].value_counts().values, "⚙️ 작업 유형")
         draw_donut(df['기물종류'].value_counts().index, df['기물종류'].value_counts().values, "🏺 기물 종류")
