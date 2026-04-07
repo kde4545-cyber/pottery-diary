@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import os
 import base64
 from io import BytesIO
@@ -8,61 +8,67 @@ from PIL import Image
 import calendar
 import plotly.graph_objects as go
 
-# 1. 페이지 설정 및 디자인
+# --- 1. 페이지 설정 및 파스텔 디자인 ---
 st.set_page_config(page_title="Dana's Pottery Log", layout="centered")
 
-st.markdown("""
+# 파스텔 색상 정의
+PASTEL_COLORS = ['#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#F3FFE3', '#F9E2AF']
+MAIN_COLOR = '#B09B90' # 부드러운 토기색
+
+st.markdown(f"""
     <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     
-    html, body, [data-testid="stAppViewContainer"] {
+    html, body, [data-testid="stAppViewContainer"] {{
         font-family: 'Pretendard', sans-serif !important;
         letter-spacing: -0.05em !important;
-        background-color: #fcfaf8;
-    }
+        background-color: #FDFBF9;
+    }}
 
-    /* 감성적인 요약 카드 디자인 */
-    .dana-report-card {
-        background: white;
-        padding: 25px;
-        border-radius: 25px;
-        border: none;
-        box-shadow: 0px 10px 30px rgba(141, 110, 99, 0.08);
-        margin-bottom: 25px;
-        text-align: center;
-    }
-    .dana-highlight { color: #8d6e63; font-weight: 800; font-size: 1.2em; }
-    .dana-sentence { font-size: 1.1em; line-height: 1.8; color: #444; word-break: keep-all; }
+    /* 탭 메뉴 (이모티콘만) */
+    .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
+    .stTabs [data-baseweb="tab"] {{ font-size: 1.5em !important; }}
 
-    /* 캘린더 디자인 */
-    .cal-day {
-        min-height: 55px; padding: 5px; border-radius: 12px;
-        background-color: #ffffff; border: 1px solid #f2f2f2;
+    /* 카드 및 컨테이너 */
+    .dana-card {{
+        background: white; padding: 20px; border-radius: 20px;
+        box-shadow: 0px 8px 20px rgba(0,0,0,0.03); margin-bottom: 20px;
+    }}
+    .summary-box {{
+        background: #F9F5F2; padding: 15px; border-radius: 15px;
+        border-left: 5px solid {MAIN_COLOR}; margin-top: 10px;
+    }}
+    
+    /* 텍스트 강조 */
+    .highlight {{ color: #D4A373; font-weight: 800; font-size: 1.1em; }}
+    .title-text {{ font-size: 1.5em; font-weight: 800; color: #5D574F; margin-bottom: 20px; }}
+
+    /* 캘린더 그리드 */
+    .cal-grid {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }}
+    .cal-day {{
+        min-height: 60px; padding: 5px; border-radius: 12px;
+        background-color: white; border: 1px solid #F0F0F0;
         display: flex; flex-direction: column; align-items: center;
-    }
-    .cal-date { font-size: 0.7em; color: #ccc; }
-    .cal-sticker { font-size: 1.3em; margin-top: 2px; }
-    .today { border: 1.5px solid #8d6e63 !important; background-color: #fff9f8 !important; }
+    }}
+    .today {{ border: 2px solid {MAIN_COLOR} !important; background-color: #FFF9F8 !important; }}
 
-    /* 메뉴(탭) 디자인 */
-    .stTabs [data-baseweb="tab-list"] { justify-content: space-around; border-bottom: none; gap: 5px; }
-    .stTabs [data-baseweb="tab"] { font-size: 0.85em !important; font-weight: 600 !important; color: #999; }
-    .stTabs [aria-selected="true"] { color: #8d6e63 !important; border-bottom: 2px solid #8d6e63 !important; }
+    /* 버튼 스타일 */
+    .stButton>button {{
+        width: 100%; border-radius: 15px; height: 3.5em;
+        background-color: {MAIN_COLOR}; color: white; font-weight: bold; border: none;
+    }}
 
-    .stButton>button { width: 100%; border-radius: 15px; height: 3.5em; background-color: #8d6e63; color: white; font-weight: bold; border: none; box-shadow: 0 4px 10px rgba(141, 110, 99, 0.2); }
-    .log-card { background-color: #ffffff; padding: 20px; border-radius: 20px; border: 1px solid #f5f5f5; margin-top: 15px; }
+    /* 이미지 갤러리 */
+    .gallery-img {{ border-radius: 15px; object-fit: cover; width: 100%; aspect-ratio: 1/1; }}
+    
+    /* 아이콘 깨짐 방지 */
+    [data-testid="stIcon"] {{ font-family: inherit !important; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 데이터 및 설정
-DATA_FILE = "pottery_diary_v2.csv"
+# --- 2. 데이터 로직 ---
+DATA_FILE = "pottery_diary_v3.csv" # 데이터 구조 변경 시 대비
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
-POTTERY_COLORS = ['#D5BDAF', '#E3D5CA', '#F5EBE0', '#D6CCC2', '#EDEDE9', '#A28B78', '#E6BAA3']
-
-def img_to_base64(image):
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=70)
-    return base64.b64encode(buffered.getvalue()).decode()
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -71,136 +77,211 @@ def load_data():
         return df
     return pd.DataFrame(columns=["날짜", "작품명", "흙", "단계", "내용", "사진", "기분", "작업유형", "기물종류"])
 
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False, encoding='utf-8-sig')
+
+def img_to_base(image):
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG", quality=70)
+    return base64.b64encode(buffered.getvalue()).decode()
+
 df = load_data()
 
-# 탭 메뉴명 통일
-tab_cal, tab_rec, tab_proj, tab_mood, tab_log = st.tabs(["📅 Dana's Calendar", "📝 Dana's Record", "🏺 Dana's Project", "✨ Dana's Mood", "📊 Dana's Log"])
+# --- 3. 메뉴 구성 (이모티콘 탭) ---
+tab_cal, tab_rec, tab_proj, tab_mood, tab_log = st.tabs(["📅", "📝", "🏺", "✨", "📊"])
 
-# --- [TAB 1: Dana's Calendar] ---
+# --- [TAB 1: 0월 모아보기] ---
 with tab_cal:
-    st.subheader(f"🏺 {datetime.now().year}년 {datetime.now().month}월")
-    today = datetime.now().date()
-    cal_month = calendar.monthcalendar(today.year, today.month)
+    # 월 선택 로직
+    col_y, col_m = st.columns([1, 1])
+    with col_y: sel_year = st.selectbox("년도", [2024, 2025, 2026], index=2)
+    with col_m: sel_month = st.selectbox("월", list(range(1, 13)), index=datetime.now().month-1)
+    
+    st.markdown(f"<div class='title-text'>{sel_month}월 모아보기</div>", unsafe_allow_html=True)
+    
+    # 캘린더 그리드 생성
+    cal = calendar.monthcalendar(sel_year, sel_month)
     cols = st.columns(7)
     for i, d in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
-        cols[i].markdown(f"<div style='text-align:center; color:#8d6e63; font-weight:bold; font-size:0.7em;'>{d}</div>", unsafe_allow_html=True)
-    for week in cal_month:
+        cols[i].markdown(f"<div style='text-align:center; font-size:0.8em; color:#999;'>{d}</div>", unsafe_allow_html=True)
+    
+    month_moods = []
+    work_days = 0
+    
+    for week in cal:
         cols = st.columns(7)
         for i, day in enumerate(week):
             if day == 0: cols[i].write("")
             else:
-                this_date = datetime(today.year, today.month, day).date()
-                day_records = df[df['날짜'] == this_date]
-                sticker = MOOD_DICT.get(day_records.iloc[-1]['기분'], "") if not day_records.empty else ""
-                is_today = "today" if this_date == today else ""
-                cols[i].markdown(f"""<div class="cal-day {is_today}"><div class="cal-date">{day}</div><div class="cal-sticker">{sticker}</div></div>""", unsafe_allow_html=True)
-    st.divider()
-    view_date = st.date_input("선택 날짜 상세", today)
-    logs = df[df['날짜'] == view_date]
-    for _, row in logs.iterrows():
-        st.markdown(f"""<div class="log-card"><b>{MOOD_DICT.get(row['기분'], '')} {row['작품명']}</b> | {row['단계']}<p style='margin-top:10px; font-size:0.9em;'>{row['내용']}</p></div>""", unsafe_allow_html=True)
-        if pd.notna(row['사진']) and row['사진'] != "": st.image(base64.b64decode(row['사진']), use_container_width=True)
+                curr_date = date(sel_year, sel_month, day)
+                day_logs = df[df['날짜'] == curr_date]
+                sticker = ""
+                if not day_logs.empty:
+                    sticker = MOOD_DICT.get(day_logs.iloc[-1]['기분'], "")
+                    month_moods.append(day_logs.iloc[-1]['기분'])
+                    work_days += 1
+                
+                is_today = "today" if curr_date == datetime.now().date() else ""
+                cols[i].markdown(f"""
+                    <div class="cal-day {is_today}">
+                        <div style="font-size:0.7em; color:#ccc;">{day}</div>
+                        <div style="font-size:1.4em;">{sticker}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+    # 이번달 요약
+    st.markdown("<div class='summary-box'>", unsafe_allow_html=True)
+    st.markdown(f"**💡 {sel_month}월 요약**")
+    if work_days > 0:
+        top_m = max(set(month_moods), key=month_moods.count)
+        st.write(f"이번 달은 총 **{work_days}일** 흙을 만졌어요. 가장 많이 느낀 기분은 **'{top_m}' {MOOD_DICT[top_m]}**이네요!")
+    else:
+        st.write("아직 이번 달 기록이 없어요. 흙을 만지러 가볼까요?")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- [TAB 2: Dana's Record] ---
+# --- [TAB 2: 오늘의 작업 기록] ---
 with tab_rec:
-    st.subheader("오늘의 작업 기록")
-    with st.form("record_form"):
-        selected_mood = st.radio("기분 선택", options=list(MOOD_DICT.keys()), format_func=lambda x: f"{MOOD_DICT[x]} {x}", horizontal=True, label_visibility="collapsed")
+    st.markdown("<div class='title-text'>오늘의 작업 기록</div>", unsafe_allow_html=True)
+    
+    with st.form("record_form", clear_on_submit=True):
+        # 기분 선택 (이모지만)
+        mood_keys = list(MOOD_DICT.keys())
+        sel_mood = st.radio("오늘 기분", mood_keys, horizontal=True, 
+                            format_func=lambda x: MOOD_DICT[x], label_visibility="collapsed")
+        
         c1, c2 = st.columns(2)
-        with c1: rec_date = st.date_input("날짜", datetime.now().date())
-        with c2: rec_title = st.text_input("작품명")
+        with c1: r_date = st.date_input("날짜", datetime.now().date())
+        with c2: r_title = st.text_input("작품명", placeholder="작품 이름")
+        
         c3, c4 = st.columns(2)
-        with c3: rec_type = st.selectbox("유형", ["물레", "핸드빌딩", "기타"])
-        with c4: rec_clay = st.selectbox("흙", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
-        rec_obj = st.selectbox("기물", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
-        rec_step = st.select_slider("단계", options=["성형", "건조", "초벌", "시유", "완성"])
-        rec_img = st.file_uploader("사진", type=["jpg", "png", "jpeg"])
-        rec_note = st.text_area("작업 메모")
+        with c3: r_type = st.selectbox("유형", ["물레", "핸드빌딩", "기타"])
+        with c4: r_clay = st.selectbox("흙", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
+        
+        r_obj = st.selectbox("기물", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
+        r_step = st.select_slider("단계", options=["성형", "건조", "초벌", "시유", "완성"])
+        r_img = st.file_uploader("사진 촬영/업로드", type=["jpg", "png", "jpeg"])
+        r_note = st.text_area("메모", placeholder="어떤 작업을 했나요?")
+        
         if st.form_submit_button("기록 저장하기"):
-            if rec_title:
-                img_str = img_to_base64(Image.open(rec_img).convert("RGB").resize((800,800))) if rec_img else ""
-                new_data = pd.DataFrame([[rec_date, rec_title, rec_clay, rec_step, rec_note, img_str, selected_mood, rec_type, rec_obj]], columns=["날짜", "작품명", "흙", "단계", "내용", "사진", "기분", "작업유형", "기물종류"])
-                df = pd.concat([df, new_data], ignore_index=True)
-                df.to_csv(DATA_FILE, index=False, encoding='utf-8-sig')
-                st.success("Dana의 기록이 저장되었습니다!"); st.rerun()
+            if r_title:
+                img_s = ""
+                if r_img:
+                    img = Image.open(r_img).convert("RGB")
+                    img.thumbnail((800, 800))
+                    img_s = img_to_base(img)
+                
+                new_row = pd.DataFrame([[r_date, r_title, r_clay, r_step, r_note, img_s, sel_mood, r_type, r_obj]], 
+                                       columns=df.columns)
+                df = pd.concat([df, new_row], ignore_index=True)
+                save_data(df)
+                st.balloons()
+                st.success("Dana의 소중한 기록이 저장되었습니다!")
+                st.rerun() # 리셋 효과
+            else:
+                st.error("작품명을 적어주세요!")
 
-# --- [TAB 3: Dana's Project] ---
+# --- [TAB 3: 작품 모아보기] ---
 with tab_proj:
-    st.subheader("🏺 작품별 히스토리")
-    if not df.empty:
-        filter_status = st.radio("필터", ["전체", "작업 중", "완성됨"], horizontal=True)
-        for name in df['작품명'].unique():
-            p_df = df[df['작품명'] == name].sort_values(by='날짜')
-            finished = "완성" in p_df['단계'].values
-            if (filter_status == "작업 중" and finished) or (filter_status == "완성됨" and not finished): continue
-            with st.expander(f"{'✅' if finished else '🏺'} {name}"):
-                for _, r in p_df.iterrows():
-                    st.write(f"**{r['날짜']}** [{r['단계']}]\n\n{r['내용']}")
-                    if pd.notna(r['사진']) and r['사진'] != "": st.image(base64.b64decode(r['사진']), use_container_width=True)
-    else: st.info("기록이 없습니다.")
-
-# --- [TAB 4: Dana's Mood] ---
-with tab_mood:
-    st.subheader("✨ 기분 조각들")
-    if not df.empty:
-        counts = df['기분'].value_counts()
-        m_cols = st.columns(3)
-        for i, (m, e) in enumerate(MOOD_DICT.items()):
-            c = counts.get(m, 0)
-            with m_cols[i % 3]:
-                st.markdown(f"""<div style="text-align:center; padding:15px; background:white; border-radius:15px; border:1px solid #f0f0f0; margin-bottom:10px;"><div style="font-size:2em;">{e}</div><div style="font-size:0.8em; color:#666;">{m}</div><div style="font-weight:800; color:#8d6e63;">{c}개</div></div>""", unsafe_allow_html=True)
-
-# --- [TAB 5: Dana's Log (통계 요약)] ---
-with tab_log:
-    st.subheader("📊 Dana's Analysis Report")
+    st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
+    
+    # 상단 필터
+    p_filter = st.radio("상태 구분", ["전체", "작업중", "완성"], horizontal=True)
     
     if not df.empty:
-        # 데이터 계산
-        total_projects = df['작품명'].nunique()
-        finished_projects = df[df['단계'] == "완성"]['작품명'].nunique()
-        ongoing_projects = total_projects - finished_projects
+        # 작품별로 그룹화
+        unique_titles = df['작품명'].unique()
+        display_titles = []
         
-        top_mood = df['기분'].mode()[0] if not df['기분'].empty else "-"
-        top_obj = df['기물종류'].mode()[0] if not df['기물종류'].empty else "-"
+        for t in unique_titles:
+            p_logs = df[df['작품명'] == t]
+            is_done = "완성" in p_logs['단계'].values
+            if p_filter == "작업중" and is_done: continue
+            if p_filter == "완성" and not is_done: continue
+            display_titles.append(t)
+            
+        # 그리드형 레이아웃 (2열)
+        cols = st.columns(2)
+        for idx, t in enumerate(display_titles):
+            p_logs = df[df['작품명'] == t].sort_values(by=['날짜'], ascending=True)
+            # 대표 이미지 (가장 최신 단계 이미지)
+            rep_row = p_logs[p_logs['사진'] != ""].iloc[-1] if not p_logs[p_logs['사진'] != ""].empty else None
+            
+            with cols[idx % 2]:
+                with st.expander(f"{'✅' if '완성' in p_logs['단계'].values else '🏺'} {t}"):
+                    if rep_row is not None:
+                        st.image(base64.b64decode(rep_row['사진']), use_container_width=True)
+                    else:
+                        st.write("이미지 없음")
+                    
+                    st.write("---")
+                    st.write("**작업 타임라인**")
+                    for _, row in p_logs.iterrows():
+                        st.caption(f"{row['날짜']} | {row['단계']}")
+                        if row['내용']: st.write(f"💬 {row['내용']}")
+                        if row['사진']: st.image(base64.b64decode(row['사진']), width=100)
+    else:
+        st.info("아직 등록된 작품이 없습니다.")
 
-        # 감성 요약 카드
+# --- [TAB 4: 기분 조각들] ---
+with tab_mood:
+    st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
+    
+    col_m1, col_m2 = st.columns(2)
+    with col_m1: m_month = st.selectbox("기분 월 선택", list(range(1, 13)), index=datetime.now().month-1, key="m_month")
+    with col_m2: m_proj = st.selectbox("작품별 선택", ["전체보기"] + list(df['작품명'].unique()))
+    
+    # 필터링
+    m_df = df.copy()
+    m_df['월'] = pd.to_datetime(m_df['날짜']).dt.month
+    m_df = m_df[m_df['월'] == m_month]
+    if m_proj != "전체보기":
+        m_df = m_df[m_df['작품명'] == m_proj]
+        
+    if not m_df.empty:
+        mood_counts = m_df['기분'].value_counts()
+        st.write(f"🎯 **{m_proj}** 작업 시 느낀 감정들")
+        m_cols = st.columns(4)
+        for i, (m, emoji) in enumerate(MOOD_DICT.items()):
+            count = mood_counts.get(m, 0)
+            with m_cols[i % 4]:
+                st.markdown(f"<div style='text-align:center;'><div style='font-size:1.5em;'>{emoji}</div><div style='font-size:0.7em;'>{m}</div><div style='font-weight:bold;'>{count}</div></div>", unsafe_allow_html=True)
+    else:
+        st.info("해당 조건의 기분 기록이 없습니다.")
+
+# --- [TAB 5: DANA의 기록 요약] ---
+with tab_log:
+    st.markdown("<div class='title-text'>DANA의 기록 요약</div>", unsafe_allow_html=True)
+    
+    if not df.empty:
+        total_p = df['작품명'].nunique()
+        done_p = df[df['단계'] == "완성"]['작품명'].nunique()
+        ing_p = total_p - done_p
+        top_m = df['기분'].mode()[0] if not df['기분'].empty else "-"
+        top_o = df['기물종류'].mode()[0] if not df['기물종류'].empty else "-"
+
         st.markdown(f"""
-        <div class="dana-report-card">
-            <p class="dana-sentence">
-                지금까지 Dana는...<br>
-                총 <span class="dana-highlight">{finished_projects}개</span>의 작품을 완성했고,<br>
-                지금은 <span class="dana-highlight">{ongoing_projects}개</span>의 작품을 정성껏 만드는 중이에요. ✨<br><br>
-                주로 흙을 만질 때 <span class="dana-highlight">'{top_mood}' {MOOD_DICT.get(top_mood, '')}</span> 기분이고,<br>
-                제일 만들기 좋아하는 건 <span class="dana-highlight">'{top_obj}'</span>이에요! 🏺
+        <div class="dana-card">
+            <p style='line-height:2; font-size:1.1em;'>
+                지금까지 Dana님은...<br>
+                총 <span class="highlight">{done_p}개</span>의 작품을 완성하고,<br>
+                지금은 <span class="highlight">{ing_p}개</span>의 아이들을 빚고 있어요. 🕊️<br>
+                기분 좋은 흙의 기운 속에 주로 <span class="highlight">'{top_m}' {MOOD_DICT.get(top_m, '')}</span> 마음이었고,<br>
+                가장 애정을 담아 만든 기물은 <span class="highlight">'{top_o}'</span>이에요!
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-        # 도넛 그래프 함수
-        def draw_donut(labels, values, title):
-            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.5, 
-                                        textinfo='label+value',
-                                        marker=dict(colors=POTTERY_COLORS))])
-            fig.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0), height=250, 
-                              annotations=[dict(text=title, x=0.5, y=0.5, font_size=12, showarrow=False)])
+        def draw_pastel_donut(labels, values, title):
+            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.6, 
+                                        marker=dict(colors=PASTEL_COLORS))])
+            fig.update_layout(showlegend=True, margin=dict(t=30, b=0, l=0, r=0), height=300,
+                              legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
             st.plotly_chart(fig, use_container_width=True)
 
-        # 그래프 섹션
-        col_g1, col_g2 = st.columns(2)
-        with col_g1:
-            mood_counts = df['기분'].value_counts()
-            draw_donut(mood_counts.index, mood_counts.values, "기분 비중")
-        
-        with col_g2:
-            type_counts = df['작업유형'].value_counts()
-            draw_donut(type_counts.index, type_counts.values, "작업 유형")
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        obj_counts = df['기물종류'].value_counts()
-        draw_donut(obj_counts.index, obj_counts.values, "기물 종류")
-        
+        st.write("✨ **작업 데이터 통계**")
+        draw_pastel_donut(df['기분'].value_counts().index, df['기분'].value_counts().values, "기분 비중")
+        draw_pastel_donut(df['기물종류'].value_counts().index, df['기물종류'].value_counts().values, "기물 비중")
     else:
-        st.info("데이터가 충분히 쌓이면 Dana만의 리포트가 완성됩니다.")
+        st.info("데이터가 쌓이면 Dana님만의 리포트가 생성됩니다.")
 
 st.markdown("<br><br><br>", unsafe_allow_html=True)
