@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 import calendar
 import plotly.graph_objects as go
 
-# --- 1. 페이지 설정 및 모바일 7열 고정 레이아웃 ---
+# --- 1. 페이지 설정 및 디자인 ---
 st.set_page_config(page_title="Dana's Pottery Log", layout="centered")
 
 MAIN_COLOR = '#B09B90'
@@ -23,55 +23,62 @@ st.markdown(f"""
         background-color: #FDFBF9;
     }}
     
-    /* [핵심] 모바일에서 7개의 컬럼이 세로로 꺾이지 않게 강제 고정 */
-    [data-testid="stHorizontalBlock"] {{
+    /* 탭 메뉴 디자인 */
+    .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
+    .stTabs [data-baseweb="tab"] {{ font-size: 1.4rem !important; }}
+
+    /* [핵심] 달력 전용 가로 7열 강제 고정 (다른 레이아웃에 영향 없음) */
+    div[data-testid="stHorizontalBlock"]:has(button[key^="cal_"]) {{
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        align-items: center !important;
-        justify-content: center !important;
         gap: 2px !important;
     }}
-    [data-testid="column"] {{
+    div[data-testid="stHorizontalBlock"]:has(button[key^="cal_"]) [data-testid="column"] {{
         flex: 1 1 0% !important;
         min-width: 0px !important;
     }}
 
-    /* 캘린더 날짜 버튼 스타일 */
-    .stButton > button {{
+    /* 달력 버튼 디자인 */
+    .stButton > button[key^="cal_"] {{
         width: 100% !important;
-        padding: 5px 0 !important;
         height: 55px !important;
+        padding: 0px !important;
         background-color: white !important;
-        color: #BBB !important;
+        color: #CCC !important;
         border: 1px solid #F0F0F0 !important;
         border-radius: 6px !important;
-        font-size: 0.75rem !important;
+        font-size: 0.7rem !important;
         display: flex !important;
         flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
+        align-items: center;
+        justify-content: flex-start;
     }}
     
-    /* 기록 있는 날 음영 처리 */
-    div.has-rec-btn > div > button {{
+    /* 기록이 있는 날 버튼 */
+    div.has-rec > div > button {{
         background-color: #F9F5F2 !important;
-        border-color: #E6DED8 !important;
+        border: 1px solid #E6DED8 !important;
         color: {MAIN_COLOR} !important;
-        font-weight: bold !important;
     }}
 
-    /* 선택된 날짜 강조 */
-    div.active-date-btn > div > button {{
-        border: 2px solid {MAIN_COLOR} !important;
-        background-color: #FFF9F8 !important;
+    /* 클릭된(활성화된) 날짜 버튼 */
+    div.is-active > div > button {{
+        background-color: {MAIN_COLOR} !important;
+        color: white !important;
+        border: 1px solid {MAIN_COLOR} !important;
     }}
 
-    .summary-box {{ background: #F9F5F2; padding: 12px; border-radius: 15px; border-left: 5px solid {MAIN_COLOR}; margin-top: 10px; line-height: 1.6; font-size: 0.9rem; }}
+    /* 달력 내 아주 작은 썸네일 */
+    .cal-img-tiny {{
+        width: 25px; height: 25px; object-fit: cover; border-radius: 4px; margin-top: 2px;
+    }}
+
+    .summary-box {{ background: #F9F5F2; padding: 12px; border-radius: 12px; border-left: 5px solid {MAIN_COLOR}; margin-top: 10px; line-height: 1.5; font-size: 0.9rem; }}
     .title-text {{ font-size: 1.4em; font-weight: 800; color: #5D574F; margin: 10px 0; }}
     
-    /* 상세 보기 썸네일 */
-    .detail-thumb {{ width: 80px; height: 80px; object-fit: cover; border-radius: 8px; margin: 2px; }}
+    /* 상세 페이지 이미지 크기 고정 */
+    .detail-img-box img {{ width: 85px !important; height: 85px !important; object-fit: cover; border-radius: 8px; margin-right: 4px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,7 +86,6 @@ st.markdown(f"""
 DATA_FILE = "pottery_diary_v4.csv"
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
 
-# 데이터 로드
 def load_data():
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE); df['날짜'] = pd.to_datetime(df['날짜']).dt.date
@@ -104,46 +110,39 @@ for y in [2025, 2026]:
         if y == 2026 and m > 4: break
         month_opts.append(f"{y}년 {m:02d}월")
 
-# 세션 상태 초기화
-if 'sel_month_idx' not in st.session_state: 
-    st.session_state.sel_month_idx = len(month_opts) - 1 # 현재 달(26년 4월)
-if 'clicked_date' not in st.session_state: 
-    st.session_state.clicked_date = datetime.now().date()
+# 세션 관리
+if 'sel_month_idx' not in st.session_state: st.session_state.sel_month_idx = len(month_opts) - 1
+if 'active_date' not in st.session_state: st.session_state.active_date = datetime.now().date()
 
 # --- 3. 메뉴 구성 ---
 tab_cal, tab_rec, tab_proj, tab_mood, tab_log = st.tabs(["📅", "📝", "🏺", "✨", "📊"])
 
-# --- [TAB 1: 캘린더 모아보기] ---
+# --- [TAB 1: 캘린더] ---
 with tab_cal:
-    # 1. 상단 네비게이션 (화살표 + 드롭다운)
-    nav_c1, nav_c2, nav_c3 = st.columns([1, 6, 1])
-    
-    with nav_c1:
-        if st.button("◀", key="prev_btn"):
-            if st.session_state.sel_month_idx > 0:
-                st.session_state.sel_month_idx -= 1; st.rerun()
-                
-    with nav_c2:
-        selected_month_str = st.selectbox("월", month_opts, index=st.session_state.sel_month_idx, label_visibility="collapsed")
-        st.session_state.sel_month_idx = month_opts.index(selected_month_str)
-        
-    with nav_c3:
-        if st.button("▶", key="next_btn"):
-            if st.session_state.sel_month_idx < len(month_opts) - 1:
-                st.session_state.sel_month_idx += 1; st.rerun()
+    # 상단 네비게이션
+    n1, n2, n3 = st.columns([1, 5, 1])
+    with n1:
+        if st.button("◀", key="nav_prev"):
+            if st.session_state.sel_month_idx > 0: st.session_state.sel_month_idx -= 1; st.rerun()
+    with n2:
+        month_str = st.selectbox("달력 선택", month_opts, index=st.session_state.sel_month_idx, label_visibility="collapsed", key="nav_select")
+        st.session_state.sel_month_idx = month_opts.index(month_str)
+    with n3:
+        if st.button("▶", key="nav_next"):
+            if st.session_state.sel_month_idx < len(month_opts) - 1: st.session_state.sel_month_idx += 1; st.rerun()
 
-    view_y = int(selected_month_str[:4])
-    view_m = int(selected_month_str[6:8])
+    view_y, view_m = int(month_str[:4]), int(month_str[6:8])
     st.markdown(f"<div class='title-text'>{view_m}월 모아보기</div>", unsafe_allow_html=True)
     
-    # 2. 요일 헤더
+    # 요일 헤더 (가로 고정용 별도 처리)
     h_cols = st.columns(7)
-    for i, d_n in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
-        h_cols[i].markdown(f"<div style='text-align:center; font-size:0.7em; color:{MAIN_COLOR}; font-weight:bold;'>{d_n}</div>", unsafe_allow_html=True)
+    for i, d in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
+        h_cols[i].markdown(f"<div style='text-align:center; font-size:0.7em; color:{MAIN_COLOR}; font-weight:bold;'>{d}</div>", unsafe_allow_html=True)
 
-    # 3. 캘린더 인터랙티브 그리드
+    # 달력 그리드
     cal_data = calendar.monthcalendar(view_y, view_m)
-    for week in cal_data:
+    work_count = 0
+    for week_idx, week in enumerate(cal_data):
         w_cols = st.columns(7)
         for i, day in enumerate(week):
             if day == 0:
@@ -152,41 +151,39 @@ with tab_cal:
                 curr_date = date(view_y, view_m, day)
                 day_logs = df[df['날짜'] == curr_date]
                 has_rec = not day_logs.empty
-                is_active = curr_date == st.session_state.clicked_date
+                if has_rec: work_count += 1
                 
-                # 버튼 레이블 (날짜 + 이모지)
+                # 버튼 속 이미지 및 뱃지
                 label = f"{day}"
+                thumb_html = ""
                 if has_rec:
-                    last_mood = day_logs.iloc[-1]['기분']
-                    label = f"{day}\n{MOOD_DICT.get(last_mood, '🏺')}"
-
-                # 스타일링 클래스
+                    last_pic = day_logs.iloc[-1]['사진1']
+                    if pd.notna(last_pic) and last_pic != "":
+                        thumb_html = f'<img src="data:image/jpeg;base64,{last_pic}" class="cal-img-tiny">'
+                
+                # 스타일 클래스
                 cls = ""
-                if is_active: cls = "active-date-btn"
-                elif has_rec: cls = "has-rec-btn"
+                if curr_date == st.session_state.active_date: cls = "is-active"
+                elif has_rec: cls = "has-rec"
 
                 with w_cols[i]:
                     st.markdown(f'<div class="{cls}">', unsafe_allow_html=True)
-                    if st.button(label, key=f"d_{curr_date}"):
-                        st.session_state.clicked_date = curr_date
+                    if st.button(label, key=f"cal_btn_{curr_date}"):
+                        st.session_state.active_date = curr_date
                         st.rerun()
+                    # 버튼 내부에 이미지를 넣을 수 없으므로 버튼 아래에 HTML로 썸네일 표시 (클릭은 버튼이 담당)
+                    st.markdown(f'<div style="margin-top:-38px; text-align:center; pointer-events:none;">{thumb_html}</div>', unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 4. 하단 상세 보기 (날짜 클릭 시 자동으로 갱신)
+    st.markdown(f"<div class='summary-box'>💡 이번 달은 {work_count}일 작업했어요!</div>", unsafe_allow_html=True)
+
+    # 하단 상세 기록
     st.divider()
-    detail_logs = df[df['날짜'] == st.session_state.clicked_date]
-    st.markdown(f"### 🏺 {st.session_state.clicked_date.strftime('%m월 %d일')} 기록")
-    
-    if not detail_logs.empty:
-        for idx, row in detail_logs.iterrows():
-            st.markdown(f"""
-            <div class="summary-box">
-                <b>{MOOD_DICT.get(row['기분'], '')} {row['작품명']}</b> | {row['단계']}<br>
-                <small>{row['작업유형']} · {row['기물종류']} · {row['흙']}</small><br>
-                {row['내용']}
-            </div>
-            """, unsafe_allow_html=True)
-            # 이미지 크기 제한 (너비 100px)
+    active_logs = df[df['날짜'] == st.session_state.active_date]
+    st.markdown(f"### 🏺 {st.session_state.active_date.strftime('%m월 %d일')} 기록")
+    if not active_logs.empty:
+        for idx, row in active_logs.iterrows():
+            st.markdown(f"<div class='summary-box'><b>{MOOD_DICT.get(row['기분'], '')} {row['작품명']}</b> | {row['단계']}<br>{row['내용']}</div>", unsafe_allow_html=True)
             img_cols = st.columns(3)
             for i, c in enumerate(['사진1', '사진2', '사진3']):
                 if pd.notna(row[c]) and row[c] != "":
@@ -207,9 +204,7 @@ with tab_rec:
         if st.form_submit_button("저장하기"):
             if r_title:
                 img_l = [process_img(r_imgs[i]) if i < len(r_imgs) else "" for i in range(3)]
-                # 기본값 채우기 위해 df 로드 후 결합
-                new_data = pd.DataFrame([[r_date, r_title, "백자토", "성형", r_note, img_l[0], img_l[1], img_l[2], mood, "물레", "컵"]], 
-                                        columns=df.columns)
+                new_data = pd.DataFrame([[r_date, r_title, "백자토", "성형", r_note, img_l[0], img_l[1], img_l[2], mood, "물레", "컵"]], columns=df.columns)
                 df = pd.concat([df, new_data], ignore_index=True); save_data(df); st.balloons(); st.rerun()
 
 with tab_proj:
@@ -227,13 +222,12 @@ with tab_proj:
 
 with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
-    if not df.empty: st.write(f"가장 많이 느낀 기분은 **{df['기분'].mode()[0]}**입니다.")
+    if not df.empty: st.write(f"주로 느끼는 기분은 **{df['기분'].mode()[0]}** 입니다.")
 
 with tab_log:
     st.markdown("<div class='title-text'>Dana's Log</div>", unsafe_allow_html=True)
     if not df.empty:
         fig = go.Figure(data=[go.Pie(labels=df['기분'].value_counts().index, values=df['기분'].value_counts().values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
-        fig.update_layout(height=280, margin=dict(t=10, b=10, l=10, r=10))
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(height=280, margin=dict(t=10, b=10, l=10, r=10)); st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("<br><br><br>", unsafe_allow_html=True)
