@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 import calendar
 import plotly.graph_objects as go
 
-# --- 1. 페이지 설정 및 안정적인 Pretendard 디자인 ---
+# --- 1. 페이지 설정 및 레이아웃 복구 ---
 st.set_page_config(page_title="Dana's Pottery Log", layout="centered")
 
 PASTEL_COLORS = ['#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#F3FFE3', '#F9E2AF']
@@ -24,9 +24,21 @@ st.markdown(f"""
         background-color: #FDFBF9;
     }}
 
-    /* 메뉴 탭 크기 정상화 */
+    /* [핵심 수정] 상단 메뉴바(탭) 균등 분할 및 중앙 정렬 */
+    .stTabs [data-baseweb="tab-list"] {{
+        display: flex !important;
+        justify-content: space-around !important; /* 메뉴 사이 간격 균등 분배 */
+        width: 100% !important;
+        border-bottom: none !important;
+        gap: 0px !important;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        flex-grow: 1 !important; /* 모든 탭이 동일한 너비 차지 */
+        text-align: center !important;
+        padding: 10px 0px !important;
+    }}
     .stTabs [data-baseweb="tab-list"] button div {{
-        font-size: 1.5rem !important;
+        font-size: 1.5rem !important; /* 아이콘 크기 복구 */
     }}
 
     /* 제목 및 텍스트 설정 */
@@ -45,13 +57,12 @@ st.markdown(f"""
     .cal-mood-sticker {{ font-size: 1.1rem; }}
     .is-today {{ border: 2px solid {MAIN_COLOR} !important; background-color: #FFF9F8 !important; }}
 
-    /* 갤러리 정방형 디자인 */
+    /* 갤러리 디자인 */
     .gallery-img-container {{
         width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; background-color: #F8F8F8;
     }}
     .gallery-img-container img {{ width: 100%; height: 100%; object-fit: cover; }}
     
-    /* 버튼 및 박스 */
     .stButton>button {{ 
         width: 100%; border-radius: 12px; height: 3.5em; 
         background-color: {MAIN_COLOR}; color: white; font-weight: bold; border: none;
@@ -60,7 +71,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 데이터 및 이미지 로직 ---
+# --- 2. 데이터 및 이미지 로직 (유지) ---
 DATA_FILE = "pottery_diary_v4.csv"
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
 
@@ -161,7 +172,6 @@ with tab_proj:
                             if pd.notna(row[ic]) and row[ic] != "": st.image(base64.b64decode(row[ic]), use_container_width=True)
                         if st.button("삭제", key=f"del_{r_idx}"):
                             df = df.drop(index=r_idx); save_data(df); st.rerun()
-    else: st.info("기록이 없습니다.")
 
 # --- [TAB 4/5: 요약 리포트 등] ---
 with tab_mood:
@@ -177,7 +187,7 @@ with tab_mood:
 with tab_log:
     st.subheader("📊 Dana's Report")
     if not df.empty:
-        total_p = df['작품명'].nunique(); done_p = df[df['단계'] == "완성"]['작품명'].nunique()
+        done_p = df[df['단계'] == "완성"]['작품명'].nunique()
         st.markdown(f"<div class='summary-box'>지금까지 총 **{done_p}개**의 작품을 완성했어요! ✨</div>", unsafe_allow_html=True)
         fig = go.Figure(data=[go.Pie(labels=df['기분'].value_counts().index, values=df['기분'].value_counts().values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
         fig.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
