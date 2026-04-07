@@ -27,18 +27,21 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ flex-grow: 1; text-align: center; }}
     .stTabs [data-baseweb="tab-list"] button div {{ font-size: 1.4rem !important; }}
 
-    /* [네비게이션 바] 모바일 강제 가로 한 줄 고정 */
-    .nav-wrapper [data-testid="stHorizontalBlock"] {{
+    /* [네비게이션] 모바일 강제 가로 한 줄 고정 */
+    div[data-testid="column"]:has(button[key^="cp"]), 
+    div[data-testid="column"]:has(div[data-testid="stSelectbox"]), 
+    div[data-testid="column"]:has(button[key^="cn"]) {{
+        flex: unset !important;
+        width: auto !important;
+        min-width: 0px !important;
+    }}
+    div[data-testid="stHorizontalBlock"]:has(button[key^="cp"]) {{
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
-        gap: 5px !important;
-    }}
-    .nav-wrapper [data-testid="column"] {{
-        width: auto !important;
-        flex: 1 1 auto !important;
-        min-width: 0px !important;
+        justify-content: center !important;
+        gap: 10px !important;
     }}
 
     /* [작품 모아보기] 인스타그램형 3x3 그리드 강제 고정 */
@@ -50,13 +53,13 @@ st.markdown(f"""
         margin-bottom: 20px;
     }}
     .insta-item {{ display: flex; flex-direction: column; align-items: center; }}
-    .insta-title {{
-        font-size: 0.75em; font-weight: 800; color: #5D574F; margin-bottom: 4px;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center;
-    }}
     .insta-box {{
-        width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px;
-        background-color: #F0F0F0; border: 1px solid #EEE;
+        width: 100%;
+        aspect-ratio: 1/1;
+        overflow: hidden;
+        border-radius: 8px;
+        background-color: #F0F0F0;
+        border: 1px solid #EEE;
     }}
     .insta-box img {{ width: 100%; height: 100%; object-fit: cover; }}
     .insta-empty {{ background-color: #F6F6F6; border: 1px dashed #DDD; }}
@@ -107,19 +110,19 @@ tab_cal, tab_list, tab_rec, tab_proj, tab_mood, tab_log = tabs
 
 # --- [TAB 1: 📅 월간 모아보기] ---
 with tab_cal:
-    # 한 줄 구성을 위한 전용 래퍼 사용
-    st.markdown('<div class="nav-wrapper">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 6, 1])
-    with c1:
+    # 한 줄 배치 강제 적용 (CSS와 연동)
+    nc1, nc2, nc3 = st.columns([1, 8, 1])
+    with nc1:
         if st.button("◀", key="cp"):
-            if st.session_state.sel_m_idx > 0: st.session_state.sel_m_idx -= 1; st.rerun()
-    with c2:
+            if st.session_state.sel_m_idx > 0:
+                st.session_state.sel_m_idx -= 1; st.rerun()
+    with nc2:
         m_str = st.selectbox("월", month_opts, index=st.session_state.sel_m_idx, label_visibility="collapsed", key="cs")
         st.session_state.sel_m_idx = month_opts.index(m_str)
-    with c3:
+    with nc3:
         if st.button("▶", key="cn"):
-            if st.session_state.sel_m_idx < len(month_opts)-1: st.session_state.sel_m_idx += 1; st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+            if st.session_state.sel_m_idx < len(month_opts)-1:
+                st.session_state.sel_m_idx += 1; st.rerun()
 
     y_v, m_v = int(m_str[:4]), int(m_str[6:8])
     st.markdown(f"<div class='title-text'>{m_v}월 모아보기</div>", unsafe_allow_html=True)
@@ -178,21 +181,23 @@ with tab_rec:
                 new_row = pd.DataFrame([[r_date, r_title, r_clay, r_step, r_note, img_l[0], img_l[1], img_l[2], mood, r_type, r_obj]], columns=df.columns)
                 df = pd.concat([df, new_row], ignore_index=True); save_data(df); st.balloons(); st.rerun()
 
-# --- [TAB 4: 🏺 작품 모아보기 - 9칸 이미지 그리드 고정] ---
+# --- [TAB 4: 🏺 작품 모아보기 - 제목 제거 3x3 그리드] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
-    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed")
+    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed_grid")
+    
     u_titles = df['작품명'].unique()[::-1] if not df.empty else []
     display_list = [t for t in u_titles if (p_filter=="전체") or (p_filter=="작업중" and "완성" not in df[df['작품명']==t]['단계'].values) or (p_filter=="완성" and "완성" in df[df['작품명']==t]['단계'].values)]
     
+    # 3x3 그리드 (제목 제거, 이미지만)
     grid_html = '<div class="insta-container">'
     for i in range(max(9, len(display_list))):
         if i < len(display_list):
             t = display_list[i]; p_logs = df[df['작품명'] == t].sort_values(by='날짜')
             rep = p_logs[p_logs['사진1'] != ""].iloc[-1] if not p_logs[p_logs['사진1'] != ""].empty else None
             src = f"data:image/jpeg;base64,{rep['사진1']}" if rep is not None else ""
-            grid_html += f'<div class="insta-item"><div class="insta-title">{"✅" if "완성" in p_logs["단계"].values else "🏺"} {t}</div><div class="insta-box">{"<img src=\'"+src+"\'>" if src else "No Pic"}</div></div>'
-        else: grid_html += '<div class="insta-item"><div class="insta-title"></div><div class="insta-box insta-empty"></div></div>'
+            grid_html += f'<div class="insta-item"><div class="insta-box">{"<img src=\'"+src+"\'>" if src else "No Pic"}</div></div>'
+        else: grid_html += '<div class="insta-item"><div class="insta-box insta-empty"></div></div>'
     st.markdown(grid_html + '</div>', unsafe_allow_html=True)
 
     bcols = st.columns(3)
@@ -218,10 +223,10 @@ with tab_mood:
         sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m")
         v_m = int(sel_m[6:8]); f_df = df[pd.to_datetime(df['날짜']).dt.month == v_m]; d_n = f"{v_m}월"
     else:
-        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_p")
+        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()) if not df.empty else ["없음"], key="mood_p")
         f_df = df[df['작품명'] == p_v]; d_n = p_v
         if not f_df.empty and pd.notna(f_df.iloc[-1]['사진1']):
-            st.markdown(f'<div style="width:100px; margin:0 auto 10px;"><div class="insta-box"><img src="data:image/jpeg;base64,{f_df.iloc[-1]["사진1"]}"></div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="width:100px; margin:0 auto 10px; aspect-ratio:1/1; overflow:hidden; border-radius:8px; border:1px solid #EEE;"><img src="data:image/jpeg;base64,{f_df.iloc[-1]["사진1"]}" style="width:100%; height:100%; object-fit:cover;"></div>', unsafe_allow_html=True)
     if not f_df.empty:
         mood_counts = f_df['기분'].value_counts(); total_m = len(f_df)
         st.markdown(f"<div class='summary-box'>✨ {d_n}에는 주로 <b>'{mood_counts.idxmax()}'</b>였네요!</div>", unsafe_allow_html=True)
@@ -232,12 +237,22 @@ with tab_mood:
             h_mood += f'<td style="text-align:center; padding:8px 2px; background:white; border:1px solid #F8F8F8;"><div style="font-size:1.2em;">{emoji}</div><div style="font-size:0.7em; color:#888;">{name}</div><div style="font-weight:bold; color:{MAIN_COLOR}; font-size:0.8em;">{pct}%</div><div style="font-size:0.5em; color:#CCC;">({cnt}회)</div></td>'
         st.markdown(h_mood + '<td></td></tr></table>', unsafe_allow_html=True)
 
-# --- [TAB 6: 📊 기록 요약] ---
+# --- [TAB 6: 📊 기록 요약 - 3종 그래프 및 멘트 완벽 복원] ---
 with tab_log:
     st.markdown("<div class='title-text'>DANA의 기록 요약</div>", unsafe_allow_html=True)
     if not df.empty:
         done_p = df[df['단계'] == "완성"]['작품명'].nunique(); ing_p = df['작품명'].nunique() - done_p
-        st.markdown(f'<div class="dana-card"><p style="line-height:1.8;">지금까지 Dana님은...<br>총 <span class="highlight">{done_p}개</span>의 작품을 완성하고,<br>지금은 <span class="highlight">{ing_p}개</span>의 아이들을 빚고 있어요. ✨<br>주로 흙을 만질 때 <span class="highlight">\'{df["기분"].mode()[0]}\'</span> 마음이었고,<br>가장 많이 만든 건 <span class="highlight">\'{df["기물종류"].mode()[0]}\'</span>이에요!</p></div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="dana-card">
+            <p style='line-height:1.8;'>
+                지금까지 Dana님은...<br>
+                총 <span class="highlight">{done_p}개</span>의 작품을 완성하고,<br>
+                지금은 <span class="highlight">{ing_p}개</span>의 아이들을 빚고 있어요. ✨<br>
+                주로 흙을 만질 때 <span class="highlight">'{df['기분'].mode()[0]}'</span> 마음이었고,<br>
+                가장 많이 만든 건 <span class="highlight">'{df['기물종류'].mode()[0]}'</span>이에요!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         def draw_donut(labels, values, title):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
             fig.update_layout(showlegend=True, margin=dict(t=30, b=10, l=10, r=10), height=250, legend=dict(orientation="h", y=-0.2))
