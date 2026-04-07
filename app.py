@@ -19,7 +19,7 @@ st.markdown(f"""
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     html, body, [data-testid="stAppViewContainer"] {{
         font-family: 'Pretendard', sans-serif !important;
-        letter-spacing: -0.05em !important;
+        letter-spacing: -0.03em !important;
         background-color: #FDFBF9;
     }}
     .stTabs [data-baseweb="tab-list"] {{ justify-content: space-around; border-bottom: none; }}
@@ -74,7 +74,6 @@ def save_data(df):
 def process_img(upload_file):
     if upload_file is None: return ""
     img = Image.open(upload_file).convert("RGB")
-    # 찌그러짐 방지 정방형 크롭 (800x800)
     img = ImageOps.fit(img, (800, 800), Image.Resampling.LANCZOS)
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=80)
@@ -104,13 +103,13 @@ with tab_cal:
             else:
                 curr_date = date(sel_year, sel_month, day)
                 logs = df[df['날짜'] == curr_date]
-                sticker = MOOD_DICT.get(logs.iloc[-1]['기분'], "") if not logs.empty else ""
-                if not logs.empty: m_moods.append(logs.iloc[-1]['기분']); work_days += 1
+                stickers = "".join([f'<span class="cal-mood-sticker">{MOOD_DICT.get(m, "")}</span>' for m in logs['기분']]) if not logs.empty else ""
+                if not logs.empty: m_moods.extend(logs['기분'].tolist()); work_days += 1
                 t_cls = 'is-today' if curr_date == today_date else ''
-                html += f'<td class="{t_cls}"><span class="cal-date-num">{day}</span><span class="cal-mood-sticker">{sticker}</span></td>'
+                html += f'<td class="{t_cls}"><span class="cal-date-num">{day}</span><span class="cal-mood-sticker">{stickers}</span></td>'
         html += '</tr>'
     st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
-    st.markdown(f"<div class='summary-box'>**💡 {sel_month}월 요약**<br>{'총 '+str(work_days)+'일 작업했어요. 기분은 주로 '+MOOD_DICT.get(max(set(m_moods), key=m_moods.count), '') if work_days>0 else '기록이 없어요.'}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='summary-box'>**💡 {sel_month}월 요약**<br>{'총 '+str(work_days)+'일 작업했어요.' if work_days>0 else '기록이 없어요.'}</div>", unsafe_allow_html=True)
 
 # --- [TAB 2: 기록하기] ---
 with tab_rec:
@@ -125,7 +124,6 @@ with tab_rec:
         with c4: r_clay = st.selectbox("흙", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
         r_obj = st.selectbox("기물", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
         r_step = st.select_slider("단계", options=["성형", "건조", "초벌", "시유", "완성"])
-        # 사진 최대 3장 업로드 가능
         r_imgs = st.file_uploader("사진 (최대 3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
         r_note = st.text_area("메모")
         if st.form_submit_button("기록 저장하기"):
@@ -136,7 +134,7 @@ with tab_rec:
                 st.balloons(); st.rerun()
             else: st.error("작품명을 적어주세요!")
 
-# --- [TAB 3: 작품 모아보기] ---
+# --- [TAB 3: 작품 모아보기 - 수정 기능 추가] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
     p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, label_visibility="collapsed")
@@ -151,15 +149,56 @@ with tab_proj:
             with p_cols[idx % 2]:
                 img_src = f"data:image/jpeg;base64,{rep_row['사진1']}" if rep_row is not None else ""
                 st.markdown(f'<div class="gallery-card"><div class="gallery-img-container">{"<img src=\'"+img_src+"\'>" if rep_row is not None else "<div style=\'padding:40% 10%; color:#ccc;\'>No Photo</div>"}</div><div class="gallery-info"><div class="gallery-title">🏺 {t} {"<span class=\'complete-badge\'>완성</span>" if is_done else ""}</div></div></div>', unsafe_allow_html=True)
-                with st.expander("기록 보기"):
+                
+                with st.expander("과정 보기/수정"):
                     for r_idx, row in p_logs.iterrows():
                         st.caption(f"{row['날짜']} | {row['단계']}")
-                        # 사진 3장 모두 표시
-                        for img_col in ['사진1', '사진2', '사진3']:
-                            if pd.notna(row[img_col]) and row[img_col] != "":
-                                st.image(base64.b64decode(row[img_col]), use_container_width=True)
-                        if st.button("삭제", key=f"del_{r_idx}"):
-                            df = df.drop(index=r_idx); save_data(df); st.rerun()
+                        # 사진 표시
+                        p_cols_img = st.columns(3)
+                        for i, ic in enumerate(['사진1', '사진2', '사진3']):
+                            if pd.notna(row[ic]) and row[ic] != "":
+                                p_cols_img[i].image(base64.b64decode(row[ic]), use_container_width=True)
+                        
+                        if row['내용']: st.write(row['내용'])
+                        
+                        # --- 수정 및 삭제 버튼 ---
+                        btn_c1, btn_c2 = st.columns(2)
+                        with btn_c1:
+                            # [수정 팝업]
+                            with st.popover("✏️ 수정"):
+                                with st.form(f"edit_form_{r_idx}"):
+                                    edit_mood = st.radio("기분", list(MOOD_DICT.keys()), index=list(MOOD_DICT.keys()).index(row['기분']), horizontal=True, format_func=lambda x: MOOD_DICT[x])
+                                    edit_date = st.date_input("날짜", row['날짜'])
+                                    edit_title = st.text_input("작품명", row['작품명'])
+                                    edit_note = st.text_area("메모", row['내용'])
+                                    
+                                    st.write("---")
+                                    photo_option = st.radio("사진 관리", ["기존 사진 유지", "새 사진으로 교체"], horizontal=True)
+                                    new_imgs = st.file_uploader("새 사진 (교체 선택 시에만 적용)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+                                    
+                                    if st.form_submit_button("수정 완료"):
+                                        df.at[r_idx, '기분'] = edit_mood
+                                        df.at[r_idx, '날짜'] = edit_date
+                                        df.at[r_idx, '작품명'] = edit_title
+                                        df.at[r_idx, '내용'] = edit_note
+                                        
+                                        if photo_option == "새 사진으로 교체":
+                                            img_list = [process_img(new_imgs[i]) if i < len(new_imgs) else "" for i in range(3)]
+                                            df.at[r_idx, '사진1'] = img_list[0]
+                                            df.at[r_idx, '사진2'] = img_list[1]
+                                            df.at[r_idx, '사진3'] = img_list[2]
+                                        
+                                        save_data(df)
+                                        st.success("수정되었습니다!")
+                                        st.rerun()
+
+                        with btn_c2:
+                            # [삭제 팝업]
+                            with st.popover("🗑️ 삭제"):
+                                st.warning("정말 삭제할까요?")
+                                if st.button("확인", key=f"del_{r_idx}"):
+                                    df = df.drop(index=r_idx); save_data(df); st.rerun()
+                        st.divider()
     else: st.info("기록이 없습니다.")
 
 # --- [TAB 4: 기분 조각들] ---
