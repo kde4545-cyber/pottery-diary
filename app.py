@@ -59,7 +59,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 데이터 및 공통 항목 정의 ---
+# --- 2. 데이터 및 공통 항목 ---
 DATA_FILE = "pottery_diary_v4.csv"
 MOOD_DICT = {"행복": "😊", "기쁨": "😄", "절망": "😱", "슬픔": "😢", "화이팅": "🔥", "실망": "😞", "감격": "😭"}
 CLAY_LIST = ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"]
@@ -90,7 +90,7 @@ if 'proj_detail' not in st.session_state: st.session_state.proj_detail = None
 # [최상단 고정 제목]
 st.markdown('<div class="fixed-title">다니의 슬기로운 도예라이프❤️‍🔥</div>', unsafe_allow_html=True)
 
-# --- 3. 메뉴 구성 (탭) ---
+# --- 3. 메뉴 구성 ---
 tabs = st.tabs(["📊", "📅", "📜", "🏺", "✨", "📝"])
 tab_log, tab_cal, tab_list, tab_proj, tab_mood, tab_rec = tabs
 
@@ -121,17 +121,11 @@ with tab_log:
 
 # --- [TAB 2: 📅 월간 모아보기] ---
 with tab_cal:
-    c1, c2, c3 = st.columns([1, 6, 1])
-    with c1:
-        if st.button("◀", key="cp"):
-            if st.session_state.sel_m_idx > 0: st.session_state.sel_m_idx -= 1; st.rerun()
-    with c2:
-        m_str = st.selectbox("월", month_opts, index=st.session_state.sel_m_idx, label_visibility="collapsed", key="cs")
-        st.session_state.sel_m_idx = month_opts.index(m_str)
-    with c3:
-        if st.button("▶", key="cn"):
-            if st.session_state.sel_m_idx < len(month_opts)-1: st.session_state.sel_m_idx += 1; st.rerun()
-    y_v, m_v = int(m_str[:4]), int(m_str[6:8])
+    # 화살표 제거, 드롭다운만 남김
+    month_str = st.selectbox("월 선택", month_opts, index=st.session_state.sel_m_idx, key="calendar_m_sel")
+    st.session_state.sel_m_idx = month_opts.index(month_str)
+    
+    y_v, m_v = int(month_str[:4]), int(month_str[6:8])
     st.markdown(f"<div class='title-text'>{m_v}월 모아보기</div>", unsafe_allow_html=True)
     cal_data = calendar.monthcalendar(y_v, m_v)
     h_cal = '<table class="cal-table"><thead><tr>'
@@ -149,7 +143,7 @@ with tab_cal:
         h_cal += '</tr>'
     st.markdown(h_cal + '</tbody></table>', unsafe_allow_html=True)
 
-# --- [TAB 3: 📜 기록 모아보기 - 완벽 수정 기능] ---
+# --- [TAB 3: 📜 기록 모아보기] ---
 with tab_list:
     st.markdown("<div class='title-text'>기록 모아보기</div>", unsafe_allow_html=True)
     if not df.empty:
@@ -161,7 +155,6 @@ with tab_list:
                 for i, c in enumerate(['사진1', '사진2', '사진3']):
                     if pd.notna(row[c]) and row[c] != "": icols[i].image(base64.b64decode(row[c]), use_container_width=True)
                 
-                # --- 모든 항목 수정 폼 ---
                 with st.popover("✏️ 모든 정보 수정"):
                     with st.form(f"full_edit_{idx}"):
                         e_mood = st.radio("기분", list(MOOD_DICT.keys()), index=list(MOOD_DICT.keys()).index(row['기분']), horizontal=True, format_func=lambda x: MOOD_DICT[x])
@@ -173,36 +166,22 @@ with tab_list:
                         e_obj = st.selectbox("기물 종류", OBJ_LIST, index=OBJ_LIST.index(row['기물종류']) if row['기물종류'] in OBJ_LIST else 0)
                         e_step = st.select_slider("단계", options=STEP_LIST, value=row['단계'])
                         e_note = st.text_area("메모", row['내용'])
-                        
-                        st.write("---")
-                        st.info("사진을 새로 올리면 기존 사진이 교체됩니다. 올리지 않으면 기존 사진이 유지됩니다.")
-                        e_imgs = st.file_uploader("사진 교체 (최대 3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"f_edit_img_{idx}")
-                        
-                        if st.form_submit_button("수정 내용 저장"):
-                            df.at[idx, '기분'] = e_mood
-                            df.at[idx, '날짜'] = e_date
-                            df.at[idx, '작품명'] = e_title
-                            df.at[idx, '작업유형'] = e_type
-                            df.at[idx, '흙'] = e_clay
-                            df.at[idx, '기물종류'] = e_obj
-                            df.at[idx, '단계'] = e_step
-                            df.at[idx, '내용'] = e_note
-                            
+                        e_imgs = st.file_uploader("사진 교체 (3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"f_edit_img_{idx}")
+                        if st.form_submit_button("수정 저장"):
+                            df.at[idx, '기분'], df.at[idx, '날짜'], df.at[idx, '작품명'], df.at[idx, '작업유형'], df.at[idx, '흙'], df.at[idx, '기물종류'], df.at[idx, '단계'], df.at[idx, '내용'] = e_mood, e_date, e_title, e_type, e_clay, e_obj, e_step, e_note
                             if e_imgs:
                                 img_list = [process_img(e_imgs[i]) if i < len(e_imgs) else "" for i in range(3)]
                                 df.at[idx, '사진1'], df.at[idx, '사진2'], df.at[idx, '사진3'] = img_list[0], img_list[1], img_list[2]
-                            
-                            save_data(df); st.success("수정되었습니다!"); st.rerun()
-                
+                            save_data(df); st.rerun()
                 if st.button("🗑️ 삭제", key=f"dl_{idx}"): df = df.drop(index=idx); save_data(df); st.rerun()
-    else: st.info("기록이 없습니다.")
 
-# --- [TAB 4: 🏺 작품 모아보기] ---
+# --- [TAB 4: 🏺 작품 모아보기 - 9칸 이미지 그리드] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
-    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed")
+    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, key="pf_fixed_insta")
     u_titles = df['작품명'].unique()[::-1] if not df.empty else []
     display_list = [t for t in u_titles if (p_filter=="전체") or (p_filter=="작업중" and "완성" not in df[df['작품명']==t]['단계'].values) or (p_filter=="완성" and "완성" in df[df['작품명']==t]['단계'].values)]
+    
     grid_html = '<div class="insta-container">'
     for i in range(max(9, len(display_list))):
         if i < len(display_list):
@@ -220,8 +199,8 @@ with tab_proj:
             st.markdown('</div>', unsafe_allow_html=True)
     if st.session_state.proj_detail:
         st.divider(); st.markdown(f"**🏺 {st.session_state.proj_detail} 상세보기**")
-        p_history = df[df['작품명'] == st.session_state.proj_detail].sort_values(by='날짜')
-        for _, r in p_history.iterrows():
+        p_hist = df[df['작품명'] == st.session_state.proj_detail].sort_values(by='날짜')
+        for _, r in p_hist.iterrows():
             st.markdown(f"**{r['날짜']}** [{r['단계']}]")
             ic = st.columns(3)
             for i, cn in enumerate(['사진1','사진2','사진3']):
@@ -232,10 +211,10 @@ with tab_mood:
     st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
     mode = st.radio("기준", ["📅 월별", "🏺 작품별"], horizontal=True)
     if mode == "📅 월별":
-        sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m")
+        sel_m = st.selectbox("분석 월 선택", month_opts, index=st.session_state.sel_m_idx, key="mood_m_final")
         v_m = int(sel_m[6:8]); f_df = df[pd.to_datetime(df['날짜']).dt.month == v_m]; d_n = f"{v_m}월"
     else:
-        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_p")
+        p_v = st.selectbox("작품 선택", sorted(df['작품명'].unique()), key="mood_p_final")
         f_df = df[df['작품명'] == p_v]; d_n = p_v
         if not f_df.empty and pd.notna(f_df.iloc[-1]['사진1']):
             st.markdown(f'<div style="width:100px; margin:0 auto 10px; aspect-ratio:1/1; overflow:hidden; border-radius:8px; border:1px solid #EEE;"><img src="data:image/jpeg;base64,{f_df.iloc[-1]["사진1"]}" style="width:100%; height:100%; object-fit:cover;"></div>', unsafe_allow_html=True)
