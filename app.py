@@ -8,67 +8,87 @@ from PIL import Image, ImageOps
 import calendar
 import plotly.graph_objects as go
 
-# --- 1. 페이지 설정 및 디자인 ---
+# --- 1. 페이지 설정 및 디자인 (교보손글씨 전면 적용) ---
 st.set_page_config(page_title="Dana's Pottery Log", layout="centered")
 
-# 디자인 테마 설정
 PASTEL_COLORS = ['#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#F3FFE3', '#F9E2AF']
 MAIN_COLOR = '#B09B90'
 
-# CSS 디자인 (글자 크기 최적화 및 잘림 방지)
+# 모든 스트림릿 요소에 교보손글씨 2019 강제 적용
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap');
+    @font-face {
+        font-family: 'KyoboHandwriting2019';
+        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/KyoboHandwriting2019.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+    }
     
-    /* 전체 폰트 적용 */
-    html, body, [data-testid="stAppViewContainer"], .stMarkdown, p, span, label, input, select, textarea, button {
-        font-family: 'Nanum Pen Script', cursive !important;
-        font-size: 1.15rem !important; /* 글자 크기 적절히 하향 조정 */
+    /* 1. 모든 요소에 폰트 적용 */
+    * {
+        font-family: 'KyoboHandwriting2019', cursive !important;
+    }
+
+    html, body, [data-testid="stAppViewContainer"], .stMarkdown, p, div, span, label, input, select, textarea, button {
+        font-family: 'KyoboHandwriting2019', cursive !important;
+        font-size: 1.3rem !important; /* 글자 크기 시원하게 확대 */
         color: #5D574F;
+        letter-spacing: -0.02em !important;
     }
 
-    /* 상단 메뉴(탭) 폰트 조절 */
+    /* 2. 상단 탭 메뉴명 폰트 및 크기 */
     .stTabs [data-baseweb="tab-list"] button div {
-        font-size: 1.5rem !important;
+        font-family: 'KyoboHandwriting2019', cursive !important;
+        font-size: 1.8rem !important;
     }
 
-    /* 제목 강조 */
+    /* 3. 드롭다운(Selectbox) 내부 글자 */
+    div[data-baseweb="select"] * {
+        font-family: 'KyoboHandwriting2019', cursive !important;
+        font-size: 1.25rem !important;
+    }
+
+    /* 4. 슬라이더 및 기타 입력창 */
+    div[data-testid="stSlider"] * {
+        font-family: 'KyoboHandwriting2019', cursive !important;
+    }
+
+    /* 제목 및 강조 스타일 */
     .title-text { 
-        font-size: 1.8rem !important; 
+        font-size: 2.5rem !important; 
         font-weight: bold; 
         color: #5D574F; 
         margin-bottom: 15px; 
     }
-    .highlight { color: #D4A373; font-weight: bold; font-size: 1.3rem; }
+    .highlight { color: #D4A373; font-weight: bold; font-size: 1.5rem; }
 
-    /* 캘린더 디자인 (모바일 가로 7열 고정) */
+    /* 캘린더 디자인 (7열 고정) */
     .cal-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; }
-    .cal-table th { text-align: center; font-size: 0.8rem; color: #B09B90; padding: 5px 0; }
+    .cal-table th { text-align: center; font-size: 1.1rem; color: #B09B90; padding: 5px 0; }
     .cal-table td { 
         border: 1px solid #F0F0F0; 
         background: white; 
-        height: 65px; 
+        height: 70px; 
         vertical-align: top; 
-        padding: 3px; 
+        padding: 4px; 
         text-align: center; 
     }
-    .cal-date-num { font-size: 0.7rem; color: #CCC; display: block; }
-    .cal-mood-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 1px; }
-    .cal-mood-sticker { font-size: 1rem; }
-    .is-today { border: 2px solid #B09B90 !important; background-color: #FFF9F8 !important; }
+    .cal-date-num { font-size: 0.9rem; color: #CCC; display: block; margin-bottom: 3px; }
+    .cal-mood-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+    .cal-mood-sticker { font-size: 1.3rem; }
+    .is-today { border: 2.5px solid #B09B90 !important; background-color: #FFF9F8 !important; }
 
     /* 갤러리 카드 */
     .gallery-card { background: white; border-radius: 15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; overflow: hidden; }
     .gallery-img-container { width: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
     .gallery-img-container img { width: 100%; height: 100%; object-fit: cover; }
-    .gallery-title { padding: 8px; font-size: 1.1rem; color: #444; font-weight: bold; }
-
-    /* 버튼 스타일 */
+    
     .stButton>button { 
-        width: 100%; border-radius: 12px; height: 3em; 
+        width: 100%; border-radius: 15px; height: 3.2em; 
         background-color: #B09B90; color: white; font-weight: bold; border: none;
+        font-size: 1.4rem !important;
     }
-    .summary-box { background: #F9F5F2; padding: 15px; border-radius: 15px; border-left: 5px solid #B09B90; margin-top: 10px; }
+    .summary-box { background: #F9F5F2; padding: 15px; border-radius: 15px; border-left: 5px solid #B09B90; margin-top: 10px; font-size: 1.3rem; line-height: 1.5; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,11 +119,11 @@ df = load_data()
 # --- 3. 메뉴 구성 (이모지 탭) ---
 tab_cal, tab_rec, tab_proj, tab_mood, tab_log = st.tabs(["📅", "📝", "🏺", "✨", "📊"])
 
-# --- [TAB 1: 캘린더] ---
+# --- [TAB 1: 0월 모아보기] ---
 with tab_cal:
-    col_y, col_m = st.columns(2)
-    with col_y: sel_year = st.selectbox("년도", [2024, 2025, 2026], index=2)
-    with col_m: sel_month = st.selectbox("월", list(range(1, 13)), index=datetime.now().month-1)
+    c1, c2 = st.columns(2)
+    with c1: sel_year = st.selectbox("년도", [2024, 2025, 2026], index=2)
+    with c2: sel_month = st.selectbox("월", list(range(1, 13)), index=datetime.now().month-1)
     
     st.markdown(f"<div class='title-text'>{sel_month}월 모아보기</div>", unsafe_allow_html=True)
     
@@ -140,22 +160,25 @@ with tab_cal:
     else: summary = "기록을 채워볼까요?"
     st.markdown(f"<div class='summary-box'>**💡 {sel_month}월 요약**<br>{summary}</div>", unsafe_allow_html=True)
 
-# --- [TAB 2: 오늘의 기록] ---
+# --- [TAB 2: 오늘의 작업 기록] ---
 with tab_rec:
     st.markdown("<div class='title-text'>오늘의 작업 기록</div>", unsafe_allow_html=True)
     with st.form("record_form", clear_on_submit=True):
-        sel_mood = st.radio("기분", list(MOOD_DICT.keys()), horizontal=True, format_func=lambda x: MOOD_DICT[x], label_visibility="collapsed")
+        sel_mood = st.radio("기분 선택", list(MOOD_DICT.keys()), horizontal=True, format_func=lambda x: MOOD_DICT[x], label_visibility="collapsed")
         c1, c2 = st.columns(2)
         with c1: r_date = st.date_input("날짜", datetime.now().date())
-        with c2: r_title = st.text_input("작품명")
+        with c2: r_title = st.text_input("작품명", placeholder="작품 이름")
+        
         c3, c4 = st.columns(2)
-        with c3: r_type = st.selectbox("유형", ["물레", "핸드빌딩", "기타"])
-        with c4: r_clay = st.selectbox("흙", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
-        r_obj = st.selectbox("기물", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
-        r_step = st.select_slider("단계", options=["성형", "건조", "초벌", "시유", "완성"])
+        with c3: r_type = st.selectbox("작업 유형", ["물레", "핸드빌딩", "기타"])
+        with c4: r_clay = st.selectbox("흙 종류", ["백자토", "산백토", "조형토", "청자토", "옹기토", "기타"])
+        
+        r_obj = st.selectbox("기물 종류", ["컵", "접시", "그릇", "항아리", "고블렛", "면기", "오브제", "기타"])
+        r_step = st.select_slider("현재 단계", options=["성형", "건조", "초벌", "시유", "완성"])
         r_imgs = st.file_uploader("사진 (최대 3장)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-        r_note = st.text_area("메모")
-        if st.form_submit_button("기록 저장하기"):
+        r_note = st.text_area("오늘의 메모")
+        
+        if st.form_submit_button("오늘의 기록 저장하기"):
             if r_title:
                 img_list = [process_img(r_imgs[i]) if i < len(r_imgs) else "" for i in range(3)]
                 new_row = pd.DataFrame([[r_date, r_title, r_clay, r_step, r_note, img_list[0], img_list[1], img_list[2], sel_mood, r_type, r_obj]], columns=df.columns)
@@ -166,7 +189,7 @@ with tab_rec:
 # --- [TAB 3: 작품 모아보기] ---
 with tab_proj:
     st.markdown("<div class='title-text'>작품 모아보기</div>", unsafe_allow_html=True)
-    p_filter = st.radio("필터", ["전체", "작업중", "완성"], horizontal=True, label_visibility="collapsed")
+    p_filter = st.radio("상태 구분", ["전체", "작업중", "완성"], horizontal=True, label_visibility="collapsed")
     if not df.empty:
         u_titles = df['작품명'].unique()
         display_titles = [t for t in u_titles if (p_filter=="전체") or (p_filter=="작업중" and "완성" not in df[df['작품명']==t]['단계'].values) or (p_filter=="완성" and "완성" in df[df['작품명']==t]['단계'].values)]
@@ -179,7 +202,7 @@ with tab_proj:
             
             with proj_cols[idx % 2]:
                 img_src = f"data:image/jpeg;base64,{rep_row['사진1']}" if rep_row is not None else ""
-                st.markdown(f'<div class="gallery-card"><div class="gallery-img-container">{"<img src=\'"+img_src+"\'>" if rep_row is not None else "No Photo"}</div><div class="gallery-title">🏺 {t} {"(완성)" if is_done else ""}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="gallery-card"><div class="gallery-img-container">{"<img src=\'"+img_src+"\'>" if rep_row is not None else "No Photo"}</div><div class="gallery-info"><div class="gallery-title">🏺 {t} {"(완성)" if is_done else ""}</div></div></div>', unsafe_allow_html=True)
                 with st.expander("상세 기록"):
                     for r_idx, row in p_logs.iterrows():
                         st.caption(f"{row['날짜']} | {row['단계']}")
@@ -191,25 +214,37 @@ with tab_proj:
                             df = df.drop(index=r_idx); save_data(df); st.rerun()
     else: st.info("기록이 없습니다.")
 
-# --- [TAB 4/5: 기분 및 통계] ---
+# --- [TAB 4: 기분 조각들] ---
 with tab_mood:
-    st.subheader("✨ 기분 조각들")
-    m_month = st.selectbox("월 선택", list(range(1, 13)), index=datetime.now().month-1, key="sm_mood")
+    st.markdown("<div class='title-text'>기분 조각들</div>", unsafe_allow_html=True)
+    m_month = st.selectbox("월 선택", list(range(1, 13)), index=datetime.now().month-1, key="sm_mood_last")
     m_df = df.copy(); m_df['월'] = pd.to_datetime(m_df['날짜']).dt.month
     m_df = m_df[m_df['월'] == m_month]
     if not m_df.empty:
-        m_counts = m_df['기분'].value_counts()
+        mood_counts = m_df['기분'].value_counts()
         m_grid = st.columns(4)
         for i, (m, emoji) in enumerate(MOOD_DICT.items()):
-            cnt = m_counts.get(m, 0)
+            cnt = mood_counts.get(m, 0)
             with m_grid[i % 4]: st.write(f"{emoji} {m}: {cnt}개")
 
+# --- [TAB 5: DANA의 기록 요약] ---
 with tab_log:
-    st.subheader("📊 기록 요약")
+    st.markdown("<div class='title-text'>Dana의 기록 요약</div>", unsafe_allow_html=True)
     if not df.empty:
-        total_p = df['작품명'].nunique(); done_p = df[df['단계'] == "완성"]['작품명'].nunique()
-        st.markdown(f"<div class='dana-card'>지금까지 총 <span class='highlight'>{done_p}개</span>를 완성했어요!</div>", unsafe_allow_html=True)
+        total_p = df['작품명'].nunique(); done_p = df[df['단계'] == "완성"]['작품명'].nunique(); ing_p = total_p - done_p
+        top_m = df['기분'].mode()[0] if not df['기분'].empty else "-"; top_o = df['기물종류'].mode()[0] if not df['기물종류'].empty else "-"
+        st.markdown(f"""
+        <div class="dana-card">
+            <p style='line-height:2.0; font-size:1.3rem;'>
+                지금까지 Dana님은...<br>
+                총 <span class="highlight">{done_p}개</span>를 완성하고,<br>
+                지금은 <span class="highlight">{ing_p}개</span>를 빚고 있어요. 🕊️<br>
+                주로 <span class="highlight">'{top_m}' {MOOD_DICT.get(top_m, '')}</span> 마음이었고,<br>
+                주력 기물은 <span class="highlight">'{top_o}'</span>이에요!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         mood_counts = df['기분'].value_counts()
         fig = go.Figure(data=[go.Pie(labels=mood_counts.index, values=mood_counts.values, hole=.6, marker=dict(colors=PASTEL_COLORS))])
-        fig.update_layout(showlegend=True, height=300, font=dict(family="Nanum Pen Script", size=18))
+        fig.update_layout(showlegend=True, height=300, font=dict(family="KyoboHandwriting2019", size=22))
         st.plotly_chart(fig, use_container_width=True)
